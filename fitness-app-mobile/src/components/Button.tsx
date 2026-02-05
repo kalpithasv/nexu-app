@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Reusable UI Components
+// Nexu Fitness - Reusable UI Components
 // ============================================
 
 import React from 'react';

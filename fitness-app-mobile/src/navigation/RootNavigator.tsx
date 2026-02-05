@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Root Navigator
+// Nexu Fitness - Root Navigator
 // ============================================
 
 import React from 'react';
@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../utils/colors';
+import { NexuLogo } from '../components/NexuLogo';
 
 // Auth Screens
 import {
@@ -33,6 +34,11 @@ import {
   ActiveWorkoutScreen,
   DietScreen,
   ProfileScreen,
+  SettingsScreen,
+  HealthDataScreen,
+  GoalsScreen,
+  HelpSupportScreen,
+  TermsPrivacyScreen,
 } from '../screens/main/InteractiveScreens';
 
 const Stack = createNativeStackNavigator();
@@ -86,6 +92,22 @@ const WorkoutStackNavigator = () => {
   );
 };
 
+// ============== PROFILE STACK ==============
+const ProfileStackNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={screenOptions}>
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+      <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="HealthData" component={HealthDataScreen} />
+      <Stack.Screen name="Goals" component={GoalsScreen} />
+      <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+      <Stack.Screen name="TermsPrivacy" component={TermsPrivacyScreen} />
+    </Stack.Navigator>
+  );
+};
+
 // ============== MAIN TAB NAVIGATOR ==============
 const MainTabs = () => {
   return (
@@ -135,7 +157,7 @@ const MainTabs = () => {
       />
       <Tab.Screen
         name="ProfileTab"
-        component={ProfileScreen}
+        component={ProfileStackNavigator}
         options={{
           tabBarLabel: 'Profile',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>👤</Text>,
@@ -148,9 +170,8 @@ const MainTabs = () => {
 // ============== LOADING SCREEN ==============
 const LoadingScreen = () => (
   <View style={loadingStyles.container}>
-    <Text style={loadingStyles.logo}>⚡</Text>
-    <Text style={loadingStyles.title}>FitPulse AI</Text>
-    <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 20 }} />
+    <NexuLogo size="large" variant="full" />
+    <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
   </View>
 );
 
@@ -160,15 +181,6 @@ const loadingStyles = StyleSheet.create({
     backgroundColor: COLORS.secondary,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  logo: {
-    fontSize: 80,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-    marginTop: 16,
   },
 });
 

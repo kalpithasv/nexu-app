@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Color System
+// Nexu Fitness - Color System
 // ============================================
 
 export const COLORS = {

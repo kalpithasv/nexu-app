@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Interactive Main Screens
+// Nexu Fitness - Interactive Main Screens
 // Complete with real state management and API integration
 // ============================================
 
@@ -19,6 +19,7 @@ import {
   FlatList,
 } from 'react-native';
 import { PrimaryButton, ProgressBar, TextInput } from '../../components/Button';
+import { NexuLogo } from '../../components/NexuLogo';
 import { COLORS } from '../../utils/colors';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkout } from '../../context/WorkoutContext';
@@ -1189,32 +1190,32 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
       {/* Menu Items */}
       <View style={styles.menuSection}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Settings')}>
           <Text style={styles.menuIcon}>⚙️</Text>
           <Text style={styles.menuText}>Settings</Text>
           <Text style={styles.menuArrow}>→</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('HealthData')}>
           <Text style={styles.menuIcon}>📊</Text>
           <Text style={styles.menuText}>Health Data</Text>
           <Text style={styles.menuArrow}>→</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Goals')}>
           <Text style={styles.menuIcon}>🎯</Text>
           <Text style={styles.menuText}>Goals</Text>
           <Text style={styles.menuArrow}>→</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('SubscriptionPlans')}>
           <Text style={styles.menuIcon}>💳</Text>
           <Text style={styles.menuText}>Subscription</Text>
           <Text style={styles.menuArrow}>→</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('HelpSupport')}>
           <Text style={styles.menuIcon}>❓</Text>
           <Text style={styles.menuText}>Help & Support</Text>
           <Text style={styles.menuArrow}>→</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('TermsPrivacy')}>
           <Text style={styles.menuIcon}>📄</Text>
           <Text style={styles.menuText}>Terms & Privacy</Text>
           <Text style={styles.menuArrow}>→</Text>
@@ -1225,7 +1226,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         <Text style={styles.logoutText}>Log Out</Text>
       </TouchableOpacity>
 
-      <Text style={styles.versionText}>FitPulse AI v1.0.0</Text>
+      <Text style={styles.versionText}>Nexu Fitness v1.0.0</Text>
 
       <View style={{ height: 100 }} />
     </ScrollView>
@@ -1245,6 +1246,330 @@ const getCategoryColor = (category: string): string => {
     stretching: '#10B981',
   };
   return colors[category] || COLORS.primary;
+};
+
+// ============================================
+// SETTINGS SCREEN
+// ============================================
+export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const [notifications, setNotifications] = useState(true);
+  const [darkMode, setDarkMode] = useState(true);
+  const [workoutReminders, setWorkoutReminders] = useState(true);
+  const [mealReminders, setMealReminders] = useState(true);
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.screenTitle}>Settings</Text>
+        <View style={{ width: 50 }} />
+      </View>
+
+      <View style={styles.settingsSection}>
+        <Text style={styles.settingsSectionTitle}>Notifications</Text>
+        <View style={styles.settingItem}>
+          <Text style={styles.settingLabel}>Push Notifications</Text>
+          <TouchableOpacity 
+            style={[styles.toggle, notifications && styles.toggleActive]}
+            onPress={() => setNotifications(!notifications)}
+          >
+            <View style={[styles.toggleCircle, notifications && styles.toggleCircleActive]} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.settingItem}>
+          <Text style={styles.settingLabel}>Workout Reminders</Text>
+          <TouchableOpacity 
+            style={[styles.toggle, workoutReminders && styles.toggleActive]}
+            onPress={() => setWorkoutReminders(!workoutReminders)}
+          >
+            <View style={[styles.toggleCircle, workoutReminders && styles.toggleCircleActive]} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.settingItem}>
+          <Text style={styles.settingLabel}>Meal Reminders</Text>
+          <TouchableOpacity 
+            style={[styles.toggle, mealReminders && styles.toggleActive]}
+            onPress={() => setMealReminders(!mealReminders)}
+          >
+            <View style={[styles.toggleCircle, mealReminders && styles.toggleCircleActive]} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.settingsSection}>
+        <Text style={styles.settingsSectionTitle}>Appearance</Text>
+        <View style={styles.settingItem}>
+          <Text style={styles.settingLabel}>Dark Mode</Text>
+          <TouchableOpacity 
+            style={[styles.toggle, darkMode && styles.toggleActive]}
+            onPress={() => setDarkMode(!darkMode)}
+          >
+            <View style={[styles.toggleCircle, darkMode && styles.toggleCircleActive]} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.settingsSection}>
+        <Text style={styles.settingsSectionTitle}>Account</Text>
+        <TouchableOpacity style={styles.settingButton}>
+          <Text style={styles.settingButtonText}>Change Password</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.settingButton}>
+          <Text style={styles.settingButtonText}>Export Data</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.settingButton, styles.dangerButton]}>
+          <Text style={styles.dangerButtonText}>Delete Account</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+};
+
+// ============================================
+// HEALTH DATA SCREEN
+// ============================================
+export const HealthDataScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { user } = useAuth();
+  const [healthData, setHealthData] = useState({
+    height: '175',
+    weight: '70',
+    age: '25',
+    bloodType: 'O+',
+    allergies: 'None',
+  });
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.screenTitle}>Health Data</Text>
+        <View style={{ width: 50 }} />
+      </View>
+
+      <View style={styles.healthCard}>
+        <Text style={styles.healthCardTitle}>Body Metrics</Text>
+        <View style={styles.healthGrid}>
+          <View style={styles.healthItem}>
+            <Text style={styles.healthValue}>{healthData.height}</Text>
+            <Text style={styles.healthLabel}>Height (cm)</Text>
+          </View>
+          <View style={styles.healthItem}>
+            <Text style={styles.healthValue}>{healthData.weight}</Text>
+            <Text style={styles.healthLabel}>Weight (kg)</Text>
+          </View>
+          <View style={styles.healthItem}>
+            <Text style={styles.healthValue}>{healthData.age}</Text>
+            <Text style={styles.healthLabel}>Age</Text>
+          </View>
+          <View style={styles.healthItem}>
+            <Text style={styles.healthValue}>22.9</Text>
+            <Text style={styles.healthLabel}>BMI</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.healthCard}>
+        <Text style={styles.healthCardTitle}>Medical Info</Text>
+        <View style={styles.healthInfoRow}>
+          <Text style={styles.healthInfoLabel}>Blood Type</Text>
+          <Text style={styles.healthInfoValue}>{healthData.bloodType}</Text>
+        </View>
+        <View style={styles.healthInfoRow}>
+          <Text style={styles.healthInfoLabel}>Allergies</Text>
+          <Text style={styles.healthInfoValue}>{healthData.allergies}</Text>
+        </View>
+      </View>
+
+      <View style={styles.healthCard}>
+        <Text style={styles.healthCardTitle}>Weekly Summary</Text>
+        <View style={styles.weeklySummary}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryIcon}>🔥</Text>
+            <Text style={styles.summaryValue}>2,450</Text>
+            <Text style={styles.summaryLabel}>Avg Calories</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryIcon}>💧</Text>
+            <Text style={styles.summaryValue}>2.1L</Text>
+            <Text style={styles.summaryLabel}>Avg Water</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryIcon}>😴</Text>
+            <Text style={styles.summaryValue}>7.5h</Text>
+            <Text style={styles.summaryLabel}>Avg Sleep</Text>
+          </View>
+        </View>
+      </View>
+
+      <PrimaryButton 
+        title="Update Health Data" 
+        onPress={() => Alert.alert('Coming Soon', 'Health data editing will be available soon!')}
+        style={{ marginHorizontal: 20, marginTop: 20 }}
+      />
+    </ScrollView>
+  );
+};
+
+// ============================================
+// GOALS SCREEN
+// ============================================
+export const GoalsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const [goals, setGoals] = useState([
+    { id: 1, title: 'Lose Weight', target: '5 kg', progress: 60, icon: '⚖️' },
+    { id: 2, title: 'Build Muscle', target: '3 kg lean mass', progress: 40, icon: '💪' },
+    { id: 3, title: 'Run 5K', target: 'Under 25 min', progress: 75, icon: '🏃' },
+    { id: 4, title: 'Daily Steps', target: '10,000 steps', progress: 80, icon: '👟' },
+  ]);
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.screenTitle}>Goals</Text>
+        <View style={{ width: 50 }} />
+      </View>
+
+      <View style={styles.goalsContainer}>
+        {goals.map((goal) => (
+          <View key={goal.id} style={styles.goalCard}>
+            <View style={styles.goalHeader}>
+              <Text style={styles.goalIcon}>{goal.icon}</Text>
+              <View style={styles.goalInfo}>
+                <Text style={styles.goalTitle}>{goal.title}</Text>
+                <Text style={styles.goalTarget}>Target: {goal.target}</Text>
+              </View>
+              <Text style={styles.goalPercent}>{goal.progress}%</Text>
+            </View>
+            <ProgressBar progress={goal.progress} color={COLORS.primary} />
+          </View>
+        ))}
+      </View>
+
+      <PrimaryButton 
+        title="+ Add New Goal" 
+        onPress={() => Alert.alert('Coming Soon', 'Custom goals will be available soon!')}
+        style={{ marginHorizontal: 20, marginTop: 20 }}
+      />
+    </ScrollView>
+  );
+};
+
+// ============================================
+// HELP & SUPPORT SCREEN
+// ============================================
+export const HelpSupportScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const faqs = [
+    { q: 'How do I change my workout plan?', a: 'Go to Workouts tab and select a new program from the categories.' },
+    { q: 'How do I cancel my subscription?', a: 'Go to Profile > Subscription > Manage Subscription.' },
+    { q: 'Can I sync with other fitness apps?', a: 'Yes! We support Apple Health and Google Fit integration.' },
+    { q: 'How accurate are calorie calculations?', a: 'Our AI uses your metrics and activity to estimate calories burned.' },
+  ];
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.screenTitle}>Help & Support</Text>
+        <View style={{ width: 50 }} />
+      </View>
+
+      <View style={styles.supportCard}>
+        <Text style={styles.supportCardTitle}>Contact Us</Text>
+        <TouchableOpacity style={styles.supportOption}>
+          <Text style={styles.supportIcon}>📧</Text>
+          <View>
+            <Text style={styles.supportLabel}>Email Support</Text>
+            <Text style={styles.supportValue}>support@nexufitness.com</Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.supportOption}>
+          <Text style={styles.supportIcon}>💬</Text>
+          <View>
+            <Text style={styles.supportLabel}>Live Chat</Text>
+            <Text style={styles.supportValue}>Available 9 AM - 6 PM</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.faqSection}>
+        <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
+        {faqs.map((faq, index) => (
+          <View key={index} style={styles.faqItem}>
+            <Text style={styles.faqQuestion}>{faq.q}</Text>
+            <Text style={styles.faqAnswer}>{faq.a}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+};
+
+// ============================================
+// TERMS & PRIVACY SCREEN
+// ============================================
+export const TermsPrivacyScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.screenTitle}>Terms & Privacy</Text>
+        <View style={{ width: 50 }} />
+      </View>
+
+      <View style={styles.legalSection}>
+        <TouchableOpacity style={styles.legalItem}>
+          <Text style={styles.legalIcon}>📜</Text>
+          <View style={styles.legalContent}>
+            <Text style={styles.legalTitle}>Terms of Service</Text>
+            <Text style={styles.legalDesc}>Read our terms and conditions</Text>
+          </View>
+          <Text style={styles.legalArrow}>→</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.legalItem}>
+          <Text style={styles.legalIcon}>🔒</Text>
+          <View style={styles.legalContent}>
+            <Text style={styles.legalTitle}>Privacy Policy</Text>
+            <Text style={styles.legalDesc}>How we handle your data</Text>
+          </View>
+          <Text style={styles.legalArrow}>→</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.legalItem}>
+          <Text style={styles.legalIcon}>🍪</Text>
+          <View style={styles.legalContent}>
+            <Text style={styles.legalTitle}>Cookie Policy</Text>
+            <Text style={styles.legalDesc}>Learn about cookies we use</Text>
+          </View>
+          <Text style={styles.legalArrow}>→</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.legalItem}>
+          <Text style={styles.legalIcon}>⚖️</Text>
+          <View style={styles.legalContent}>
+            <Text style={styles.legalTitle}>GDPR Rights</Text>
+            <Text style={styles.legalDesc}>Your data protection rights</Text>
+          </View>
+          <Text style={styles.legalArrow}>→</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.legalFooter}>
+        Last updated: February 2026{'\n'}
+        Nexu Fitness v1.0.0
+      </Text>
+    </ScrollView>
+  );
 };
 
 const getDifficultyStyle = (difficulty: string) => {
@@ -2471,6 +2796,274 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 20,
+  },
+  // Settings Screen Styles
+  settingsSection: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  settingsSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  settingLabel: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  toggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.gray600,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleActive: {
+    backgroundColor: COLORS.primary,
+  },
+  toggleCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+  },
+  toggleCircleActive: {
+    alignSelf: 'flex-end',
+  },
+  settingButton: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  settingButtonText: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  dangerButton: {
+    borderBottomWidth: 0,
+  },
+  dangerButtonText: {
+    fontSize: 16,
+    color: '#EF4444',
+  },
+  // Health Data Screen Styles
+  healthCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  healthCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 16,
+  },
+  healthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  healthItem: {
+    width: '50%',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  healthValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  healthLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+  healthInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  healthInfoLabel: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  healthInfoValue: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '500',
+  },
+  weeklySummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  summaryItem: {
+    alignItems: 'center',
+  },
+  summaryIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  // Goals Screen Styles
+  goalsContainer: {
+    paddingHorizontal: 20,
+  },
+  goalCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  goalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  goalIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  goalInfo: {
+    flex: 1,
+  },
+  goalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  goalTarget: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  goalPercent: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  // Help & Support Screen Styles
+  supportCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 20,
+  },
+  supportCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 16,
+  },
+  supportOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  supportIcon: {
+    fontSize: 24,
+    marginRight: 16,
+  },
+  supportLabel: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '500',
+  },
+  supportValue: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  faqSection: {
+    paddingHorizontal: 20,
+  },
+  faqTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 16,
+  },
+  faqItem: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  faqQuestion: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  faqAnswer: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  // Terms & Privacy Screen Styles
+  legalSection: {
+    paddingHorizontal: 20,
+  },
+  legalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  legalIcon: {
+    fontSize: 24,
+    marginRight: 16,
+  },
+  legalContent: {
+    flex: 1,
+  },
+  legalTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: COLORS.text,
+  },
+  legalDesc: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  legalArrow: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+  },
+  legalFooter: {
+    textAlign: 'center',
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 40,
+    marginBottom: 40,
+    lineHeight: 20,
   },
 });
 

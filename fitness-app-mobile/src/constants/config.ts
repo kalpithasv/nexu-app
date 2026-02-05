@@ -1,9 +1,9 @@
 // ============================================
-// FitPulse AI - App Constants
+// Nexu Fitness - App Constants
 // ============================================
 
 export const APP_CONFIG = {
-  name: 'FitPulse AI',
+  name: 'Nexu Fitness',
   version: '1.0.0',
   tagline: 'Unleash Your Potential',
   description: 'Premium AI Coaching & Diet Planning',

@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Diet/Nutrition Context & State
+// Nexu Fitness - Diet/Nutrition Context & State
 // ============================================
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';

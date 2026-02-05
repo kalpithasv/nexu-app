@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - TypeScript Types & Interfaces
+// Nexu Fitness - TypeScript Types & Interfaces
 // ============================================
 
 // User Types

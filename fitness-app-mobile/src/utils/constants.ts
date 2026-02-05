@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Application Constants
+// Nexu Fitness - Application Constants
 // ============================================
 
 // API Configuration
@@ -11,7 +11,7 @@ export const API_TIMEOUT = 30000; // 30 seconds
 
 // App Configuration
 export const APP_CONFIG = {
-  name: 'FitPulse AI',
+  name: 'Nexu Fitness',
   tagline: 'Unleash Your Potential',
   version: '1.0.0',
   supportEmail: 'support@fitpulse.ai',

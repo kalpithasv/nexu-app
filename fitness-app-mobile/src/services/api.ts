@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - API Service Layer
+// Nexu Fitness - API Service Layer
 // ============================================
 
 import { API_BASE_URL, API_TIMEOUT } from '../utils/constants';

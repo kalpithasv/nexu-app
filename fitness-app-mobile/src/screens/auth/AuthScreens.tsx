@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Authentication Screens
+// Nexu Fitness - Authentication Screens
 // ============================================
 
 import React, { useState, useEffect } from 'react';
@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { PrimaryButton, TextInput } from '../../components/Button';
+import { NexuLogo } from '../../components/NexuLogo';
 import { COLORS } from '../../utils/colors';
 import { APP_CONFIG } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
@@ -32,8 +33,7 @@ export const SplashScreen: React.FC<{ navigation?: any }> = ({ navigation }) => 
   return (
     <View style={styles.splashContainer}>
       <View style={styles.logoContainer}>
-        <Text style={styles.logo}>⚡</Text>
-        <Text style={styles.appName}>{APP_CONFIG.name}</Text>
+        <NexuLogo size="large" variant="full" />
         <Text style={styles.tagline}>{APP_CONFIG.tagline}</Text>
       </View>
       <Text style={styles.splashSubtitle}>Premium AI Coaching & Diet Planning</Text>
@@ -98,7 +98,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.logo}>⚡</Text>
+          <NexuLogo size="medium" variant="full" />
           <Text style={styles.title}>Welcome Back!</Text>
           <Text style={styles.subtitle}>
             Enter your credentials to access your personalized fitness plan.
@@ -227,9 +227,10 @@ export const SignupScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
+        <NexuLogo size="small" variant="icon" style={{ marginBottom: 16 }} />
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>
-          Join FitPulse AI to start your fitness journey
+          Join Nexu Fitness to start your fitness journey
         </Text>
 
         <View style={styles.form}>

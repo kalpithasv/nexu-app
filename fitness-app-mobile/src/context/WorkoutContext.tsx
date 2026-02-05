@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Workout Context & State
+// Nexu Fitness - Workout Context & State
 // ============================================
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';

@@ -1,5 +1,5 @@
 // ============================================
-// FitPulse AI - Onboarding Screens
+// Nexu Fitness - Onboarding Screens
 // ============================================
 
 import React, { useState } from 'react';
@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { PrimaryButton, ProgressBar, TextInput, OptionButton, Card } from '../../components/Button';
+import { NexuLogo } from '../../components/NexuLogo';
 import { COLORS } from '../../utils/colors';
 import { SUBSCRIPTION_PLANS, FITNESS_GOALS, ACTIVITY_LEVELS } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
@@ -202,9 +203,10 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.header}>
+        <NexuLogo size="small" variant="icon" style={{ marginBottom: 12 }} />
         <Text style={styles.title}>Choose Your Plan</Text>
         <Text style={styles.subtitle}>
-          Unlock your full potential with FitPulse AI
+          Unlock your full potential with Nexu Fitness
         </Text>
       </View>
 
@@ -262,7 +264,7 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
 
       <TouchableOpacity 
         style={styles.skipButton}
-        onPress={() => navigation.navigate('MainApp')}
+        onPress={() => navigation.goBack()}
       >
         <Text style={styles.skipText}>Maybe later</Text>
       </TouchableOpacity>
