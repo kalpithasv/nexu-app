@@ -35,8 +35,9 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 FitPulse API Server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 FitPulse API Server running on http://0.0.0.0:${PORT}`);
+  console.log(`📱 Mobile devices can connect at http://192.168.29.100:${PORT}/api`);
 });
 
 module.exports = app;

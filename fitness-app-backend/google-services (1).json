@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "241995769650",
+    "project_id": "nexu-e48b8",
+    "storage_bucket": "nexu-e48b8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:241995769650:android:09b6dcf576f7c1c6ddd92b",
+        "android_client_info": {
+          "package_name": "com.nomad.nexu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDuQkxIaWPZdjVRhbXvQvk819fFr3XvD0o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

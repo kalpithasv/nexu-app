@@ -17,7 +17,9 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Platform,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { PrimaryButton, ProgressBar, TextInput } from '../../components/Button';
 import { NexuLogo } from '../../components/NexuLogo';
 import { COLORS } from '../../utils/colors';
@@ -29,13 +31,13 @@ import { apiClient } from '../../services/api';
 const { width } = Dimensions.get('window');
 
 // ============================================
-// HOME SCREEN - Dashboard
+// HOME SCREEN - Professional Dashboard
 // ============================================
 export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useAuth();
   const { categories, workouts, fetchCategories, fetchWorkouts, currentSession } = useWorkout();
   const { todaysTotals, macroGoals, fetchDietPlan, fetchTodaysLog, waterLog, logWater, fetchWaterLog } = useDiet();
-  
+
   const [refreshing, setRefreshing] = useState(false);
   const [userStats, setUserStats] = useState({
     totalWorkouts: 0,
@@ -43,36 +45,45 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     totalCaloriesBurned: 0,
   });
   const [todaysWorkout, setTodaysWorkout] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
+  // Load data in the background — don't block the dashboard render
   const loadData = useCallback(async () => {
     if (!user?.id) return;
-    
+
     try {
-      await Promise.all([
-        fetchCategories(),
-        fetchWorkouts(),
-        fetchDietPlan(user.id),
-        fetchTodaysLog(user.id),
-        fetchWaterLog(user.id),
-      ]);
+      // Fire-and-forget: load data in background, don't block UI
+      const promises: Promise<any>[] = [];
 
-      // Fetch user stats
-      const statsResponse = await apiClient.get<{ stats: any }>(`/users/${user.id}/stats`);
-      if (statsResponse.success && statsResponse.data) {
-        setUserStats(statsResponse.data.stats || {});
-      }
+      // Only call these if the context functions exist and backend is available
+      if (fetchCategories) promises.push(fetchCategories().catch(() => {}));
+      if (fetchWorkouts) promises.push(fetchWorkouts().catch(() => {}));
+      if (fetchDietPlan) promises.push(fetchDietPlan(user.id).catch(() => {}));
+      if (fetchTodaysLog) promises.push(fetchTodaysLog(user.id).catch(() => {}));
+      if (fetchWaterLog) promises.push(fetchWaterLog(user.id).catch(() => {}));
 
-      // Set today's recommended workout
-      if (workouts.length > 0) {
-        setTodaysWorkout(workouts[Math.floor(Math.random() * workouts.length)]);
+      await Promise.all(promises);
+
+      // Try to fetch stats from backend, but don't block on failure
+      try {
+        const statsResponse = await apiClient.get<{ stats: any }>(`/users/${user.id}/stats`);
+        if (statsResponse.success && statsResponse.data) {
+          setUserStats(statsResponse.data.stats || {});
+        }
+      } catch {
+        // Backend not available — use defaults silently
       }
     } catch (error) {
-      console.error('Error loading home data:', error);
-    } finally {
-      setLoading(false);
+      // Silently handle — dashboard still shows with default data
     }
   }, [user?.id]);
+
+  // Pick a today's workout when workouts are available
+  useEffect(() => {
+    if (workouts && workouts.length > 0 && !todaysWorkout) {
+      setTodaysWorkout(workouts[Math.floor(Math.random() * workouts.length)]);
+    }
+  }, [workouts]);
 
   useEffect(() => {
     loadData();
@@ -90,212 +101,685 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     }
   };
 
-  const calorieProgress = macroGoals?.calories 
-    ? Math.min((todaysTotals.calories / macroGoals.calories) * 100, 100) 
+  const calorieProgress = macroGoals?.calories
+    ? Math.min((todaysTotals.calories / macroGoals.calories) * 100, 100)
     : 0;
+  const proteinProgress = macroGoals?.protein
+    ? Math.min((todaysTotals.protein / macroGoals.protein) * 100, 100)
+    : 0;
+  const carbsProgress = macroGoals?.carbs
+    ? Math.min((todaysTotals.carbs / macroGoals.carbs) * 100, 100)
+    : 0;
+  const fatProgress = macroGoals?.fat
+    ? Math.min((todaysTotals.fat / macroGoals.fat) * 100, 100)
+    : 0;
+  const waterGlasses = waterLog?.glasses || 0;
+  const waterProgress = Math.min((waterGlasses / 8) * 100, 100);
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading your fitness data...</Text>
-      </View>
-    );
-  }
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
+      contentContainerStyle={{ paddingBottom: 100 }}
+      showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
       }
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.userInfo}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user?.name?.charAt(0) || '👤'}</Text>
-          </View>
-          <View>
-            <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0] || 'User'}! 👋</Text>
-            <Text style={styles.plan}>
-              🔥 {userStats.currentStreak || 0} day streak • {userStats.totalWorkouts || 0} workouts
+      {/* ===== HEADER ===== */}
+      <View style={homeStyles.header}>
+        <View style={homeStyles.headerLeft}>
+          <View style={homeStyles.avatar}>
+            <Text style={homeStyles.avatarText}>
+              {user?.name?.charAt(0)?.toUpperCase() || 'N'}
             </Text>
           </View>
+          <View>
+            <Text style={homeStyles.greetingSmall}>{getGreeting()}</Text>
+            <Text style={homeStyles.userName}>{user?.name?.split(' ')[0] || 'User'}</Text>
+          </View>
         </View>
-        <TouchableOpacity style={styles.notificationButton}>
-          <Text style={styles.notificationIcon}>🔔</Text>
+        <TouchableOpacity style={homeStyles.bellButton}>
+          <Feather name="bell" size={22} color={COLORS.text} />
         </TouchableOpacity>
       </View>
 
-      {/* Quick Stats */}
-      <View style={styles.quickStats}>
-        <View style={styles.statCard}>
-          <Text style={styles.statIcon}>🔥</Text>
-          <Text style={styles.statValue}>{userStats.totalCaloriesBurned || 0}</Text>
-          <Text style={styles.statLabel}>Cal Burned</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statIcon}>💪</Text>
-          <Text style={styles.statValue}>{userStats.totalWorkouts || 0}</Text>
-          <Text style={styles.statLabel}>Workouts</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statIcon}>⚡</Text>
-          <Text style={styles.statValue}>{userStats.currentStreak || 0}</Text>
-          <Text style={styles.statLabel}>Day Streak</Text>
-        </View>
-      </View>
-
-      {/* Active Session Banner */}
+      {/* ===== ACTIVE SESSION BANNER ===== */}
       {currentSession && (
-        <TouchableOpacity 
-          style={styles.activeSessionBanner}
+        <TouchableOpacity
+          style={homeStyles.sessionBanner}
           onPress={() => navigation.navigate('ActiveWorkout')}
+          activeOpacity={0.85}
         >
-          <View style={styles.activeSessionContent}>
-            <Text style={styles.activeSessionIcon}>🏋️</Text>
-            <View>
-              <Text style={styles.activeSessionTitle}>Workout in Progress</Text>
-              <Text style={styles.activeSessionText}>{currentSession.workoutName}</Text>
-            </View>
+          <Feather name="play-circle" size={28} color={COLORS.secondary} />
+          <View style={{ flex: 1, marginLeft: 14 }}>
+            <Text style={homeStyles.sessionTitle}>Workout in Progress</Text>
+            <Text style={homeStyles.sessionName}>{currentSession.workoutName}</Text>
           </View>
-          <Text style={styles.activeSessionArrow}>→</Text>
+          <Feather name="chevron-right" size={22} color={COLORS.secondary} />
         </TouchableOpacity>
       )}
 
-      {/* Today's Workout */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Today's Workout</Text>
+      {/* ===== STATS ROW ===== */}
+      <View style={homeStyles.statsRow}>
+        <View style={homeStyles.statCard}>
+          <View style={[homeStyles.statIconBg, { backgroundColor: 'rgba(255, 107, 107, 0.15)' }]}>
+            <Feather name="zap" size={20} color="#FF6B6B" />
+          </View>
+          <Text style={homeStyles.statValue}>{userStats.totalCaloriesBurned || 0}</Text>
+          <Text style={homeStyles.statLabel}>Calories</Text>
+        </View>
+        <View style={homeStyles.statCard}>
+          <View style={[homeStyles.statIconBg, { backgroundColor: 'rgba(255, 214, 10, 0.15)' }]}>
+            <Feather name="target" size={20} color={COLORS.primary} />
+          </View>
+          <Text style={homeStyles.statValue}>{userStats.totalWorkouts || 0}</Text>
+          <Text style={homeStyles.statLabel}>Workouts</Text>
+        </View>
+        <View style={homeStyles.statCard}>
+          <View style={[homeStyles.statIconBg, { backgroundColor: 'rgba(78, 205, 196, 0.15)' }]}>
+            <Feather name="trending-up" size={20} color="#4ECDC4" />
+          </View>
+          <Text style={homeStyles.statValue}>{userStats.currentStreak || 0}</Text>
+          <Text style={homeStyles.statLabel}>Streak</Text>
+        </View>
+      </View>
+
+      {/* ===== TODAY'S WORKOUT ===== */}
+      <View style={homeStyles.section}>
+        <View style={homeStyles.sectionHeader}>
+          <Text style={homeStyles.sectionTitle}>Today's Workout</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('WorkoutsTab')}>
+            <Text style={homeStyles.seeAll}>See All</Text>
+          </TouchableOpacity>
+        </View>
+
         {todaysWorkout ? (
-          <TouchableOpacity 
-            style={styles.workoutCard}
+          <TouchableOpacity
+            style={homeStyles.workoutCard}
             onPress={() => navigation.navigate('WorkoutDetail', { workout: todaysWorkout })}
+            activeOpacity={0.85}
           >
-            <View style={styles.workoutImage}>
-              <Text style={styles.workoutIcon}>
-                {todaysWorkout.category === 'strength' ? '💪' : 
-                 todaysWorkout.category === 'cardio' ? '🏃' : 
+            <View style={homeStyles.workoutBanner}>
+              <Text style={{ fontSize: 44 }}>
+                {todaysWorkout.category === 'strength' ? '💪' :
+                 todaysWorkout.category === 'cardio' ? '🏃' :
                  todaysWorkout.category === 'yoga' ? '🧘' : '⚡'}
               </Text>
             </View>
-            <View style={styles.workoutInfo}>
-              <Text style={styles.workoutCategory}>{todaysWorkout.category?.toUpperCase()}</Text>
-              <Text style={styles.workoutName}>{todaysWorkout.name}</Text>
-              <View style={styles.workoutMeta}>
-                <Text style={styles.metaText}>⏱️ {todaysWorkout.duration} min</Text>
-                <Text style={styles.metaText}>🔥 {todaysWorkout.calories} cal</Text>
-                <Text style={styles.metaText}>📊 {todaysWorkout.difficulty}</Text>
+            <View style={homeStyles.workoutBody}>
+              <Text style={homeStyles.workoutCategory}>{todaysWorkout.category?.toUpperCase()}</Text>
+              <Text style={homeStyles.workoutName}>{todaysWorkout.name}</Text>
+              <View style={homeStyles.workoutMeta}>
+                <View style={homeStyles.metaChip}>
+                  <Feather name="clock" size={13} color={COLORS.gray400} />
+                  <Text style={homeStyles.metaText}>{todaysWorkout.duration} min</Text>
+                </View>
+                <View style={homeStyles.metaChip}>
+                  <Feather name="zap" size={13} color={COLORS.gray400} />
+                  <Text style={homeStyles.metaText}>{todaysWorkout.calories} cal</Text>
+                </View>
+                <View style={homeStyles.metaChip}>
+                  <Feather name="bar-chart-2" size={13} color={COLORS.gray400} />
+                  <Text style={homeStyles.metaText}>{todaysWorkout.difficulty}</Text>
+                </View>
               </View>
-              <PrimaryButton
-                title="Start Workout →"
+              <TouchableOpacity
+                style={homeStyles.startBtn}
                 onPress={() => navigation.navigate('WorkoutDetail', { workout: todaysWorkout })}
-              />
+                activeOpacity={0.8}
+              >
+                <Text style={homeStyles.startBtnText}>Start Workout</Text>
+                <Feather name="arrow-right" size={18} color={COLORS.secondary} />
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
-            style={styles.emptyWorkoutCard}
+          <TouchableOpacity
+            style={homeStyles.emptyWorkout}
             onPress={() => navigation.navigate('WorkoutsTab')}
+            activeOpacity={0.8}
           >
-            <Text style={styles.emptyIcon}>🎯</Text>
-            <Text style={styles.emptyText}>No workout scheduled</Text>
-            <Text style={styles.emptySubtext}>Tap to browse workouts</Text>
+            <View style={homeStyles.emptyIconBg}>
+              <Feather name="plus" size={28} color={COLORS.primary} />
+            </View>
+            <Text style={homeStyles.emptyTitle}>No workout planned</Text>
+            <Text style={homeStyles.emptySub}>Tap to pick a workout</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Nutrition Progress */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Today's Nutrition</Text>
+      {/* ===== NUTRITION OVERVIEW ===== */}
+      <View style={homeStyles.section}>
+        <View style={homeStyles.sectionHeader}>
+          <Text style={homeStyles.sectionTitle}>Nutrition</Text>
           <TouchableOpacity onPress={() => navigation.navigate('DietTab')}>
-            <Text style={styles.viewAll}>View Details →</Text>
+            <Text style={homeStyles.seeAll}>Details</Text>
           </TouchableOpacity>
         </View>
-        
-        <View style={styles.nutritionCard}>
-          <View style={styles.calorieHeader}>
-            <Text style={styles.calorieTitle}>Calories</Text>
-            <Text style={styles.calorieValue}>
-              {todaysTotals.calories} / {macroGoals?.calories || 2000}
-            </Text>
-          </View>
-          <ProgressBar progress={calorieProgress} color={COLORS.primary} />
-          
-          <View style={styles.macroRow}>
-            <View style={styles.macroItem}>
-              <Text style={styles.macroLabel}>🥚 Protein</Text>
-              <Text style={styles.macroValue}>{todaysTotals.protein}g / {macroGoals?.protein || 150}g</Text>
-              <ProgressBar 
-                progress={macroGoals?.protein ? (todaysTotals.protein / macroGoals.protein) * 100 : 0} 
-                color="#FF6B6B" 
-              />
-            </View>
-            <View style={styles.macroItem}>
-              <Text style={styles.macroLabel}>🌾 Carbs</Text>
-              <Text style={styles.macroValue}>{todaysTotals.carbs}g / {macroGoals?.carbs || 200}g</Text>
-              <ProgressBar 
-                progress={macroGoals?.carbs ? (todaysTotals.carbs / macroGoals.carbs) * 100 : 0} 
-                color="#4ECDC4" 
-              />
-            </View>
-            <View style={styles.macroItem}>
-              <Text style={styles.macroLabel}>🥑 Fat</Text>
-              <Text style={styles.macroValue}>{todaysTotals.fat}g / {macroGoals?.fat || 70}g</Text>
-              <ProgressBar 
-                progress={macroGoals?.fat ? (todaysTotals.fat / macroGoals.fat) * 100 : 0} 
-                color="#A78BFA" 
-              />
-            </View>
-          </View>
-        </View>
-      </View>
 
-      {/* Water Intake */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Water Intake</Text>
-        <View style={styles.waterCard}>
-          <View style={styles.waterGlasses}>
-            {[...Array(8)].map((_, i) => (
-              <View key={i} style={styles.waterGlass}>
-                <Text style={[
-                  styles.waterIcon,
-                  i < (waterLog?.glasses || 0) && styles.waterFilled
-                ]}>
-                  {i < (waterLog?.glasses || 0) ? '💧' : '○'}
-                </Text>
+        <View style={homeStyles.nutritionCard}>
+          {/* Calorie ring placeholder */}
+          <View style={homeStyles.calorieRow}>
+            <View style={homeStyles.calorieCircle}>
+              <Text style={homeStyles.calorieNumber}>{todaysTotals.calories}</Text>
+              <Text style={homeStyles.calorieUnit}>kcal</Text>
+            </View>
+            <View style={homeStyles.calorieRight}>
+              <Text style={homeStyles.calorieGoal}>
+                of {macroGoals?.calories || 2000} kcal goal
+              </Text>
+              <ProgressBar progress={calorieProgress} color={COLORS.primary} height={6} />
+              <Text style={homeStyles.caloriePercent}>{Math.round(calorieProgress)}% complete</Text>
+            </View>
+          </View>
+
+          {/* Macros */}
+          <View style={homeStyles.macroGrid}>
+            <View style={homeStyles.macroCard}>
+              <View style={homeStyles.macroTop}>
+                <View style={[homeStyles.macroDot, { backgroundColor: '#FF6B6B' }]} />
+                <Text style={homeStyles.macroName}>Protein</Text>
               </View>
-            ))}
+              <Text style={homeStyles.macroVal}>{todaysTotals.protein}g</Text>
+              <ProgressBar progress={proteinProgress} color="#FF6B6B" height={4} />
+            </View>
+            <View style={homeStyles.macroCard}>
+              <View style={homeStyles.macroTop}>
+                <View style={[homeStyles.macroDot, { backgroundColor: '#4ECDC4' }]} />
+                <Text style={homeStyles.macroName}>Carbs</Text>
+              </View>
+              <Text style={homeStyles.macroVal}>{todaysTotals.carbs}g</Text>
+              <ProgressBar progress={carbsProgress} color="#4ECDC4" height={4} />
+            </View>
+            <View style={homeStyles.macroCard}>
+              <View style={homeStyles.macroTop}>
+                <View style={[homeStyles.macroDot, { backgroundColor: '#A78BFA' }]} />
+                <Text style={homeStyles.macroName}>Fat</Text>
+              </View>
+              <Text style={homeStyles.macroVal}>{todaysTotals.fat}g</Text>
+              <ProgressBar progress={fatProgress} color="#A78BFA" height={4} />
+            </View>
           </View>
-          <Text style={styles.waterText}>
-            {waterLog?.glasses || 0} / 8 glasses
-          </Text>
-          <TouchableOpacity style={styles.addWaterButton} onPress={handleLogWater}>
-            <Text style={styles.addWaterText}>+ Add Glass</Text>
+        </View>
+      </View>
+
+      {/* ===== WATER INTAKE ===== */}
+      <View style={homeStyles.section}>
+        <View style={homeStyles.sectionHeader}>
+          <Text style={homeStyles.sectionTitle}>Water</Text>
+          <Text style={homeStyles.waterCount}>{waterGlasses}/8 glasses</Text>
+        </View>
+
+        <View style={homeStyles.waterCard}>
+          <View style={homeStyles.waterBarBg}>
+            <View style={[homeStyles.waterBarFill, { width: `${waterProgress}%` }]} />
+          </View>
+          <View style={homeStyles.waterRow}>
+            <View style={homeStyles.waterDots}>
+              {[...Array(8)].map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    homeStyles.waterDot,
+                    i < waterGlasses && homeStyles.waterDotFilled,
+                  ]}
+                />
+              ))}
+            </View>
+            <TouchableOpacity style={homeStyles.addWaterBtn} onPress={handleLogWater} activeOpacity={0.8}>
+              <Feather name="plus" size={18} color={COLORS.secondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* ===== QUICK ACTIONS ===== */}
+      <View style={homeStyles.section}>
+        <Text style={homeStyles.sectionTitle}>Quick Actions</Text>
+        <View style={homeStyles.actionsRow}>
+          <TouchableOpacity
+            style={homeStyles.actionCard}
+            onPress={() => navigation.navigate('WorkoutsTab')}
+            activeOpacity={0.8}
+          >
+            <View style={[homeStyles.actionIcon, { backgroundColor: 'rgba(255, 214, 10, 0.12)' }]}>
+              <Feather name="activity" size={22} color={COLORS.primary} />
+            </View>
+            <Text style={homeStyles.actionLabel}>Workouts</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={homeStyles.actionCard}
+            onPress={() => navigation.navigate('DietTab')}
+            activeOpacity={0.8}
+          >
+            <View style={[homeStyles.actionIcon, { backgroundColor: 'rgba(78, 205, 196, 0.12)' }]}>
+              <Feather name="heart" size={22} color="#4ECDC4" />
+            </View>
+            <Text style={homeStyles.actionLabel}>Nutrition</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={homeStyles.actionCard}
+            onPress={() => navigation.navigate('ProfileTab')}
+            activeOpacity={0.8}
+          >
+            <View style={[homeStyles.actionIcon, { backgroundColor: 'rgba(167, 139, 250, 0.12)' }]}>
+              <Feather name="user" size={22} color="#A78BFA" />
+            </View>
+            <Text style={homeStyles.actionLabel}>Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={homeStyles.actionCard}
+            onPress={() => navigation.navigate('ProfileTab')}
+            activeOpacity={0.8}
+          >
+            <View style={[homeStyles.actionIcon, { backgroundColor: 'rgba(255, 107, 107, 0.12)' }]}>
+              <Feather name="award" size={22} color="#FF6B6B" />
+            </View>
+            <Text style={homeStyles.actionLabel}>Goals</Text>
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* AI Tip */}
-      <View style={styles.aiTipCard}>
-        <Text style={styles.aiIcon}>🤖</Text>
-        <View style={styles.aiContent}>
-          <Text style={styles.aiTitle}>AI Coach Tip</Text>
-          <Text style={styles.aiText}>
-            {calorieProgress < 30 
-              ? "Don't forget to log your breakfast! Starting the day with protein helps build muscle."
-              : calorieProgress < 70
-              ? "You're on track! Remember to stay hydrated during your workout."
-              : "Great job hitting your nutrition goals today! Keep up the consistency."}
-          </Text>
-        </View>
-      </View>
-
-      <View style={{ height: 100 }} />
     </ScrollView>
   );
 };
+
+// ---- HOME-SPECIFIC STYLES ----
+const homeStyles = StyleSheet.create({
+  loadingText: {
+    color: COLORS.gray500,
+    fontFamily: 'Montserrat_400Regular',
+    marginTop: 16,
+    fontSize: 14,
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 44,
+    paddingBottom: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  avatarText: {
+    fontSize: 20,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.secondary,
+  },
+  greetingSmall: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray500,
+  },
+  userName: {
+    fontSize: 20,
+    fontFamily: 'Kanit_600SemiBold',
+    color: COLORS.text,
+    marginTop: -2,
+  },
+  bellButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.gray800,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Active session
+  sessionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  sessionTitle: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_600SemiBold',
+    color: COLORS.secondary,
+  },
+  sessionName: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.secondary,
+    opacity: 0.7,
+  },
+
+  // Stats row
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 28,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: COLORS.gray800,
+    borderRadius: 18,
+    padding: 16,
+    alignItems: 'center',
+  },
+  statIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  statValue: {
+    fontSize: 22,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.text,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray500,
+    marginTop: 2,
+  },
+
+  // Sections
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Kanit_600SemiBold',
+    color: COLORS.text,
+  },
+  seeAll: {
+    fontSize: 14,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.primary,
+  },
+
+  // Workout card
+  workoutCard: {
+    backgroundColor: COLORS.gray800,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  workoutBanner: {
+    height: 100,
+    backgroundColor: 'rgba(255, 214, 10, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  workoutBody: {
+    padding: 18,
+  },
+  workoutCategory: {
+    fontSize: 11,
+    fontFamily: 'Montserrat_600SemiBold',
+    color: COLORS.primary,
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  workoutName: {
+    fontSize: 20,
+    fontFamily: 'Kanit_600SemiBold',
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  workoutMeta: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.gray700,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 5,
+  },
+  metaText: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray400,
+  },
+  startBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    height: 50,
+    gap: 8,
+  },
+  startBtnText: {
+    fontSize: 16,
+    fontFamily: 'Kanit_600SemiBold',
+    color: COLORS.secondary,
+  },
+
+  // Empty workout
+  emptyWorkout: {
+    backgroundColor: COLORS.gray800,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.gray700,
+    borderStyle: 'dashed',
+  },
+  emptyIconBg: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 214, 10, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontFamily: 'Kanit_600SemiBold',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  emptySub: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray500,
+  },
+
+  // Nutrition card
+  nutritionCard: {
+    backgroundColor: COLORS.gray800,
+    borderRadius: 20,
+    padding: 20,
+  },
+  calorieRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  calorieCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 18,
+  },
+  calorieNumber: {
+    fontSize: 24,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.primary,
+    lineHeight: 28,
+  },
+  calorieUnit: {
+    fontSize: 11,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray500,
+    marginTop: -4,
+  },
+  calorieRight: {
+    flex: 1,
+  },
+  calorieGoal: {
+    fontSize: 14,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  caloriePercent: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray500,
+    marginTop: 6,
+  },
+
+  // Macros
+  macroGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  macroCard: {
+    flex: 1,
+    backgroundColor: COLORS.gray700,
+    borderRadius: 14,
+    padding: 14,
+  },
+  macroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  macroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  macroName: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.gray400,
+  },
+  macroVal: {
+    fontSize: 18,
+    fontFamily: 'Kanit_600SemiBold',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+
+  // Water
+  waterCard: {
+    backgroundColor: COLORS.gray800,
+    borderRadius: 20,
+    padding: 18,
+  },
+  waterCount: {
+    fontSize: 14,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.gray400,
+  },
+  waterBarBg: {
+    height: 8,
+    backgroundColor: COLORS.gray700,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 14,
+  },
+  waterBarFill: {
+    height: '100%',
+    backgroundColor: '#4ECDC4',
+    borderRadius: 4,
+  },
+  waterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  waterDots: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  waterDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.gray700,
+    borderWidth: 1,
+    borderColor: COLORS.gray600,
+  },
+  waterDotFilled: {
+    backgroundColor: '#4ECDC4',
+    borderColor: '#4ECDC4',
+  },
+  addWaterBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Quick actions
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  actionCard: {
+    flex: 1,
+    backgroundColor: COLORS.gray800,
+    borderRadius: 18,
+    padding: 16,
+    alignItems: 'center',
+  },
+  actionIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  actionLabel: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.gray400,
+  },
+});
 
 // ============================================
 // WORKOUT SCREEN - Categories & Workouts List
@@ -1094,7 +1578,6 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const { user, logout, updateUser } = useAuth();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
-  const [showStats, setShowStats] = useState(true);
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
@@ -1124,114 +1607,451 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     );
   };
 
+  const fitnessProfile = (user as any)?.fitnessProfile;
+
+  const menuSections = [
+    {
+      title: 'Account',
+      items: [
+        { icon: 'settings' as const, label: 'Settings', screen: 'Settings' },
+        { icon: 'credit-card' as const, label: 'Subscription', screen: 'SubscriptionPlans' },
+      ],
+    },
+    {
+      title: 'Fitness',
+      items: [
+        { icon: 'bar-chart-2' as const, label: 'Health Data', screen: 'HealthData' },
+        { icon: 'target' as const, label: 'Goals', screen: 'Goals' },
+      ],
+    },
+    {
+      title: 'Support',
+      items: [
+        { icon: 'help-circle' as const, label: 'Help & Support', screen: 'HelpSupport' },
+        { icon: 'file-text' as const, label: 'Terms & Privacy', screen: 'TermsPrivacy' },
+      ],
+    },
+  ];
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.profileHeader}>
-        <View style={styles.profileAvatar}>
-          <Text style={styles.profileAvatarText}>{user?.name?.charAt(0) || '👤'}</Text>
-        </View>
-        {editing ? (
-          <TextInput
-            placeholder="Enter your name"
-            value={name}
-            onChangeText={setName}
-            style={styles.profileNameInput}
-          />
-        ) : (
-          <Text style={styles.profileName}>{user?.name || 'User'}</Text>
-        )}
-        <Text style={styles.profileEmail}>{user?.email}</Text>
-        <View style={styles.profileBadge}>
-          <Text style={styles.profileBadgeText}>
-            {user?.subscriptionPlan === 'premium' ? '⭐ Premium' : '🆓 Free Plan'}
-          </Text>
-        </View>
-        
-        {editing ? (
-          <View style={styles.editButtons}>
-            <TouchableOpacity style={styles.cancelButton} onPress={() => setEditing(false)}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
-            <Text style={styles.editButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-        )}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 100 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header */}
+      <View style={profStyles.header}>
+        <Text style={profStyles.headerTitle}>Profile</Text>
       </View>
 
-      {/* Stats */}
-      {stats && (
-        <View style={styles.statsCard}>
-          <Text style={styles.statsTitle}>Your Progress</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{stats.stats?.totalWorkouts || 0}</Text>
-              <Text style={styles.statLabel}>Workouts</Text>
+      {/* Profile Card */}
+      <View style={profStyles.profileCard}>
+        <View style={profStyles.avatarRow}>
+          <View style={profStyles.avatar}>
+            <Text style={profStyles.avatarText}>
+              {user?.name?.charAt(0)?.toUpperCase() || 'N'}
+            </Text>
+          </View>
+          <View style={profStyles.userInfo}>
+            {editing ? (
+              <View style={profStyles.editRow}>
+                <View style={profStyles.editInputWrap}>
+                  <Feather name="edit-2" size={16} color={COLORS.gray500} style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    {/* @ts-ignore */}
+                    <TextInput
+                      placeholder="Your name"
+                      value={name}
+                      onChangeText={setName}
+                    />
+                  </View>
+                </View>
+                <View style={profStyles.editActions}>
+                  <TouchableOpacity onPress={() => setEditing(false)} style={profStyles.editCancel}>
+                    <Feather name="x" size={18} color={COLORS.gray400} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleSave} style={profStyles.editSave}>
+                    <Feather name="check" size={18} color={COLORS.secondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <>
+                <Text style={profStyles.userName}>{user?.name || 'User'}</Text>
+                <Text style={profStyles.userEmail}>{user?.email}</Text>
+              </>
+            )}
+          </View>
+          {!editing && (
+            <TouchableOpacity onPress={() => setEditing(true)} style={profStyles.editBtn}>
+              <Feather name="edit-2" size={16} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Plan badge */}
+        <View style={profStyles.planBadge}>
+          <Feather
+            name={user?.subscriptionPlan === 'premium' ? 'award' : 'star'}
+            size={14}
+            color={COLORS.primary}
+          />
+          <Text style={profStyles.planText}>
+            {user?.subscriptionPlan === 'premium' ? 'Premium Plan' : 'Free Plan'}
+          </Text>
+          <TouchableOpacity onPress={() => navigation.navigate('SubscriptionPlans')}>
+            <Text style={profStyles.upgradeTxt}>
+              {user?.subscriptionPlan === 'premium' ? 'Manage' : 'Upgrade'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Stats Grid */}
+      <View style={profStyles.statsGrid}>
+        <View style={profStyles.statBox}>
+          <Feather name="zap" size={18} color="#FF6B6B" />
+          <Text style={profStyles.statNum}>{stats?.stats?.totalWorkouts || 0}</Text>
+          <Text style={profStyles.statLbl}>Workouts</Text>
+        </View>
+        <View style={profStyles.statBox}>
+          <Feather name="clock" size={18} color={COLORS.primary} />
+          <Text style={profStyles.statNum}>{stats?.stats?.totalMinutes || 0}</Text>
+          <Text style={profStyles.statLbl}>Minutes</Text>
+        </View>
+        <View style={profStyles.statBox}>
+          <Feather name="trending-up" size={18} color="#4ECDC4" />
+          <Text style={profStyles.statNum}>{stats?.stats?.totalCaloriesBurned || 0}</Text>
+          <Text style={profStyles.statLbl}>Calories</Text>
+        </View>
+        <View style={profStyles.statBox}>
+          <Feather name="award" size={18} color="#A78BFA" />
+          <Text style={profStyles.statNum}>{stats?.stats?.currentStreak || 0}</Text>
+          <Text style={profStyles.statLbl}>Streak</Text>
+        </View>
+      </View>
+
+      {/* Body Metrics (from Firestore fitness profile) */}
+      {fitnessProfile && (
+        <View style={profStyles.metricsCard}>
+          <Text style={profStyles.metricsTitle}>Body Metrics</Text>
+          <View style={profStyles.metricsRow}>
+            <View style={profStyles.metricItem}>
+              <Text style={profStyles.metricVal}>{fitnessProfile.age}</Text>
+              <Text style={profStyles.metricLbl}>Age</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{stats.stats?.totalMinutes || 0}</Text>
-              <Text style={styles.statLabel}>Minutes</Text>
+            <View style={profStyles.metricDivider} />
+            <View style={profStyles.metricItem}>
+              <Text style={profStyles.metricVal}>{fitnessProfile.height}</Text>
+              <Text style={profStyles.metricLbl}>cm</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{stats.stats?.totalCaloriesBurned || 0}</Text>
-              <Text style={styles.statLabel}>Calories</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{stats.stats?.currentStreak || 0}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
+            <View style={profStyles.metricDivider} />
+            <View style={profStyles.metricItem}>
+              <Text style={profStyles.metricVal}>{fitnessProfile.weight}</Text>
+              <Text style={profStyles.metricLbl}>kg</Text>
             </View>
           </View>
         </View>
       )}
 
-      {/* Menu Items */}
-      <View style={styles.menuSection}>
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.menuIcon}>⚙️</Text>
-          <Text style={styles.menuText}>Settings</Text>
-          <Text style={styles.menuArrow}>→</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('HealthData')}>
-          <Text style={styles.menuIcon}>📊</Text>
-          <Text style={styles.menuText}>Health Data</Text>
-          <Text style={styles.menuArrow}>→</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Goals')}>
-          <Text style={styles.menuIcon}>🎯</Text>
-          <Text style={styles.menuText}>Goals</Text>
-          <Text style={styles.menuArrow}>→</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('SubscriptionPlans')}>
-          <Text style={styles.menuIcon}>💳</Text>
-          <Text style={styles.menuText}>Subscription</Text>
-          <Text style={styles.menuArrow}>→</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('HelpSupport')}>
-          <Text style={styles.menuIcon}>❓</Text>
-          <Text style={styles.menuText}>Help & Support</Text>
-          <Text style={styles.menuArrow}>→</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('TermsPrivacy')}>
-          <Text style={styles.menuIcon}>📄</Text>
-          <Text style={styles.menuText}>Terms & Privacy</Text>
-          <Text style={styles.menuArrow}>→</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Menu Sections */}
+      {menuSections.map((section, sIdx) => (
+        <View key={sIdx} style={profStyles.menuSection}>
+          <Text style={profStyles.menuSectionTitle}>{section.title}</Text>
+          <View style={profStyles.menuCard}>
+            {section.items.map((item, iIdx) => (
+              <TouchableOpacity
+                key={iIdx}
+                style={[
+                  profStyles.menuRow,
+                  iIdx < section.items.length - 1 && profStyles.menuRowBorder,
+                ]}
+                onPress={() => navigation.navigate(item.screen)}
+                activeOpacity={0.7}
+              >
+                <View style={profStyles.menuIconBg}>
+                  <Feather name={item.icon} size={18} color={COLORS.text} />
+                </View>
+                <Text style={profStyles.menuLabel}>{item.label}</Text>
+                <Feather name="chevron-right" size={18} color={COLORS.gray600} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ))}
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Log Out</Text>
+      {/* Logout */}
+      <TouchableOpacity style={profStyles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+        <Feather name="log-out" size={18} color={COLORS.error} />
+        <Text style={profStyles.logoutTxt}>Log Out</Text>
       </TouchableOpacity>
 
-      <Text style={styles.versionText}>Nexu Fitness v1.0.0</Text>
-
-      <View style={{ height: 100 }} />
+      <Text style={profStyles.version}>Nexu Fitness v1.0.0</Text>
     </ScrollView>
   );
 };
+
+// ---- PROFILE-SPECIFIC STYLES ----
+const profStyles = StyleSheet.create({
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 44,
+    paddingBottom: 8,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.text,
+  },
+
+  // Profile card
+  profileCard: {
+    backgroundColor: COLORS.gray800,
+    borderRadius: 20,
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 20,
+    marginBottom: 16,
+  },
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  avatarText: {
+    fontSize: 24,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.secondary,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 20,
+    fontFamily: 'Kanit_600SemiBold',
+    color: COLORS.text,
+  },
+  userEmail: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray500,
+    marginTop: 2,
+  },
+  editBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 214, 10, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Edit mode
+  editRow: {
+    flex: 1,
+  },
+  editInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.gray700,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
+  },
+  editActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 10,
+  },
+  editCancel: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.gray700,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editSave: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Plan badge
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 214, 10, 0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 16,
+    gap: 8,
+  },
+  planText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.text,
+  },
+  upgradeTxt: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_600SemiBold',
+    color: COLORS.primary,
+  },
+
+  // Stats grid
+  statsGrid: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 16,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: COLORS.gray800,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  statNum: {
+    fontSize: 20,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.text,
+  },
+  statLbl: {
+    fontSize: 11,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray500,
+  },
+
+  // Body metrics
+  metricsCard: {
+    backgroundColor: COLORS.gray800,
+    borderRadius: 20,
+    marginHorizontal: 20,
+    padding: 20,
+    marginBottom: 20,
+  },
+  metricsTitle: {
+    fontSize: 16,
+    fontFamily: 'Kanit_600SemiBold',
+    color: COLORS.text,
+    marginBottom: 16,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  metricItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  metricVal: {
+    fontSize: 26,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.primary,
+  },
+  metricLbl: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray500,
+    marginTop: 2,
+  },
+  metricDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: COLORS.gray700,
+  },
+
+  // Menu sections
+  menuSection: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  menuSectionTitle: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_600SemiBold',
+    color: COLORS.gray500,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  menuCard: {
+    backgroundColor: COLORS.gray800,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 16,
+  },
+  menuRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray700,
+  },
+  menuIconBg: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: COLORS.gray700,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  menuLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.text,
+  },
+
+  // Logout
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginHorizontal: 20,
+    marginTop: 8,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.15)',
+  },
+  logoutTxt: {
+    fontSize: 16,
+    fontFamily: 'Montserrat_600SemiBold',
+    color: COLORS.error,
+  },
+
+  // Version
+  version: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_400Regular',
+    color: COLORS.gray600,
+    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+});
 
 // ============================================
 // HELPER FUNCTIONS

@@ -3,10 +3,11 @@
 // ============================================
 
 import React from 'react';
-import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Text, View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../utils/colors';
 import { NexuLogo } from '../components/NexuLogo';
@@ -109,25 +110,43 @@ const ProfileStackNavigator = () => {
 };
 
 // ============== MAIN TAB NAVIGATOR ==============
+const TabIcon = ({ name, color, focused }: { name: any; color: string; focused: boolean }) => (
+  <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+    {focused && (
+      <View style={{
+        position: 'absolute',
+        top: -14,
+        width: 24,
+        height: 3,
+        borderRadius: 2,
+        backgroundColor: COLORS.primary,
+      }} />
+    )}
+    <Feather name={name} size={22} color={color} />
+  </View>
+);
+
 const MainTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.gray800,
-          borderTopColor: COLORS.gray700,
+          backgroundColor: COLORS.secondary,
+          borderTopColor: COLORS.gray800,
           borderTopWidth: 1,
-          height: 85,
-          paddingBottom: 20,
-          paddingTop: 10,
+          height: Platform.OS === 'ios' ? 88 : 68,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingTop: 12,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.gray500,
         tabBarLabelStyle: {
           fontSize: 11,
+          fontFamily: 'Montserrat_500Medium',
           marginTop: 4,
-          fontWeight: '500',
         },
       }}
     >
@@ -136,7 +155,7 @@ const MainTabs = () => {
         component={HomeStackNavigator}
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>🏠</Text>,
+          tabBarIcon: ({ color, focused }) => <TabIcon name="home" color={color} focused={focused} />,
         }}
       />
       <Tab.Screen
@@ -144,15 +163,15 @@ const MainTabs = () => {
         component={WorkoutStackNavigator}
         options={{
           tabBarLabel: 'Workouts',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>💪</Text>,
+          tabBarIcon: ({ color, focused }) => <TabIcon name="activity" color={color} focused={focused} />,
         }}
       />
       <Tab.Screen
         name="DietTab"
         component={DietScreen}
         options={{
-          tabBarLabel: 'Diet',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>🥗</Text>,
+          tabBarLabel: 'Nutrition',
+          tabBarIcon: ({ color, focused }) => <TabIcon name="heart" color={color} focused={focused} />,
         }}
       />
       <Tab.Screen
@@ -160,7 +179,7 @@ const MainTabs = () => {
         component={ProfileStackNavigator}
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 24 }}>👤</Text>,
+          tabBarIcon: ({ color, focused }) => <TabIcon name="user" color={color} focused={focused} />,
         }}
       />
     </Tab.Navigator>

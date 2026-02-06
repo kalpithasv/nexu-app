@@ -12,12 +12,91 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TextInput as RNTextInput,
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
-import { PrimaryButton, TextInput } from '../../components/Button';
+import { Feather, AntDesign } from '@expo/vector-icons';
 import { NexuLogo } from '../../components/NexuLogo';
 import { COLORS } from '../../utils/colors';
 import { APP_CONFIG } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
+
+const { width } = Dimensions.get('window');
+
+// ============== CUSTOM COMPONENTS ==============
+
+const AuthInput = ({ 
+  iconName, 
+  value, 
+  onChangeText, 
+  placeholder, 
+  secureTextEntry, 
+  isPassword,
+  error 
+}: any) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  return (
+    <View style={styles.inputWrapper}>
+      <View style={[
+        styles.inputContainer, 
+        isFocused && styles.inputFocused,
+        error && styles.inputError
+      ]}>
+        <View style={styles.inputIcon}>
+          <Feather name={iconName} size={20} color={isFocused ? COLORS.primary : COLORS.gray500} />
+        </View>
+        <RNTextInput
+          style={styles.input}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={COLORS.gray500}
+          secureTextEntry={isPassword && !showPassword}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          autoCapitalize="none"
+        />
+        {isPassword && (
+          <TouchableOpacity 
+            onPress={() => setShowPassword(!showPassword)}
+            style={styles.eyeIcon}
+          >
+            <Feather 
+              name={showPassword ? "eye-off" : "eye"} 
+              size={20} 
+              color={COLORS.gray500} 
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  );
+};
+
+const SocialButton = ({ icon, onPress }: { icon: React.ReactNode, onPress?: () => void }) => (
+  <TouchableOpacity style={styles.socialButton} onPress={onPress}>
+    {icon}
+  </TouchableOpacity>
+);
+
+const PrimaryButton = ({ title, onPress, loading, style }: any) => (
+  <TouchableOpacity 
+    style={[styles.primaryButton, style]} 
+    onPress={onPress}
+    disabled={loading}
+    activeOpacity={0.8}
+  >
+    {loading ? (
+      <ActivityIndicator color={COLORS.secondary} />
+    ) : (
+      <Text style={styles.primaryButtonText}>{title}</Text>
+    )}
+  </TouchableOpacity>
+);
 
 // ============== SPLASH SCREEN ==============
 export const SplashScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
@@ -25,7 +104,7 @@ export const SplashScreen: React.FC<{ navigation?: any }> = ({ navigation }) => 
     if (navigation) {
       const timer = setTimeout(() => {
         navigation.replace('Login');
-      }, 2500);
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [navigation]);
@@ -36,11 +115,8 @@ export const SplashScreen: React.FC<{ navigation?: any }> = ({ navigation }) => 
         <NexuLogo size="large" variant="full" />
         <Text style={styles.tagline}>{APP_CONFIG.tagline}</Text>
       </View>
-      <Text style={styles.splashSubtitle}>Premium AI Coaching & Diet Planning</Text>
-      <View style={styles.loadingDots}>
-        <View style={[styles.dot, styles.dotActive]} />
-        <View style={styles.dot} />
-        <View style={styles.dot} />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     </View>
   );
@@ -57,17 +133,10 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const validateForm = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
     
-    if (!email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Please enter a valid email';
-    }
+    if (!email) newErrors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Please enter a valid email';
     
-    if (!password) {
-      newErrors.password = 'Password is required';
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
+    if (!password) newErrors.password = 'Password is required';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -79,7 +148,6 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setLoading(true);
     try {
       await login(email, password);
-      // Navigation handled by AuthContext
     } catch (error: any) {
       Alert.alert('Login Failed', error.message || 'Please check your credentials');
     } finally {
@@ -96,37 +164,37 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         style={styles.container} 
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <NexuLogo size="medium" variant="full" />
-          <Text style={styles.title}>Welcome Back!</Text>
-          <Text style={styles.subtitle}>
-            Enter your credentials to access your personalized fitness plan.
+        <View style={styles.headerContainer}>
+          <NexuLogo size="medium" variant="full" style={{ alignSelf: 'center' }} />
+          <Text style={styles.welcomeTitle}>Welcome Back!</Text>
+          <Text style={styles.welcomeSubtitle}>
+            Sign in to continue your fitness journey
           </Text>
         </View>
 
-        <View style={styles.form}>
-          <TextInput
-            label="Email"
-            placeholder="user@example.com"
+        <View style={styles.formContainer}>
+          <AuthInput
+            iconName="mail"
             value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              if (errors.email) setErrors({ ...errors, email: undefined });
+            onChangeText={(t: string) => {
+              setEmail(t);
+              if (errors.email) setErrors({...errors, email: undefined});
             }}
-            keyboardType="email-address"
+            placeholder="Email Address"
             error={errors.email}
           />
 
-          <TextInput
-            label="Password"
-            placeholder="••••••••"
+          <AuthInput
+            iconName="lock"
             value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (errors.password) setErrors({ ...errors, password: undefined });
+            onChangeText={(t: string) => {
+              setPassword(t);
+              if (errors.password) setErrors({...errors, password: undefined});
             }}
-            secureTextEntry
+            placeholder="Password"
+            isPassword
             error={errors.password}
           />
 
@@ -141,6 +209,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             title="Log In" 
             onPress={handleLogin}
             loading={loading}
+            style={styles.loginButton}
           />
 
           <View style={styles.divider}>
@@ -150,23 +219,18 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
 
           <View style={styles.socialRow}>
-            <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.socialIcon}>🍎</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.socialIcon}>🔵</Text>
-            </TouchableOpacity>
+            <SocialButton 
+              icon={<AntDesign name="google" size={24} color={COLORS.text} />} 
+              onPress={() => Alert.alert('Google Login', 'Coming soon!')}
+            />
           </View>
 
-          <Text style={styles.switchText}>
-            Don't have an account?{' '}
-            <Text 
-              style={styles.switchLink} 
-              onPress={() => navigation.navigate('Signup')}
-            >
-              Sign Up
-            </Text>
-          </Text>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+              <Text style={styles.footerLink}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -178,7 +242,6 @@ export const SignupScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { signup } = useAuth();
@@ -190,8 +253,7 @@ export const SignupScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     if (!email) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Invalid email format';
     if (!password) newErrors.password = 'Password is required';
-    else if (password.length < 8) newErrors.password = 'Minimum 8 characters required';
-    if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    else if (password.length < 8) newErrors.password = 'Min 8 characters required';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -219,60 +281,53 @@ export const SignupScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         style={styles.container} 
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <TouchableOpacity 
           onPress={() => navigation.goBack()} 
           style={styles.backButton}
         >
-          <Text style={styles.backText}>← Back</Text>
+          <Feather name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
 
-        <NexuLogo size="small" variant="icon" style={{ marginBottom: 16 }} />
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>
-          Join Nexu Fitness to start your fitness journey
-        </Text>
+        <View style={styles.headerContainer}>
+          <Text style={styles.welcomeTitle}>Create Account</Text>
+          <Text style={styles.welcomeSubtitle}>
+            Join Nexu Fitness today
+          </Text>
+        </View>
 
-        <View style={styles.form}>
-          <TextInput
-            label="Full Name"
-            placeholder="John Doe"
+        <View style={styles.formContainer}>
+          <AuthInput
+            iconName="user"
             value={name}
             onChangeText={setName}
+            placeholder="Full Name"
             error={errors.name}
           />
 
-          <TextInput
-            label="Email"
-            placeholder="user@example.com"
+          <AuthInput
+            iconName="mail"
             value={email}
             onChangeText={setEmail}
-            keyboardType="email-address"
+            placeholder="Email Address"
             error={errors.email}
           />
 
-          <TextInput
-            label="Password"
-            placeholder="••••••••"
+          <AuthInput
+            iconName="lock"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            placeholder="Password"
+            isPassword
             error={errors.password}
-          />
-
-          <TextInput
-            label="Confirm Password"
-            placeholder="••••••••"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            error={errors.confirmPassword}
           />
 
           <PrimaryButton 
             title="Sign Up" 
             onPress={handleSignup}
             loading={loading}
+            style={styles.loginButton}
           />
 
           <Text style={styles.termsText}>
@@ -282,15 +337,12 @@ export const SignupScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <Text style={styles.linkText}>Privacy Policy</Text>
           </Text>
 
-          <Text style={styles.switchText}>
-            Already have an account?{' '}
-            <Text 
-              style={styles.switchLink} 
-              onPress={() => navigation.navigate('Login')}
-            >
-              Log In
-            </Text>
-          </Text>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.footerLink}>Log In</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -302,6 +354,7 @@ export const PasswordResetScreen: React.FC<{ navigation: any }> = ({ navigation 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const { resetPassword } = useAuth();
 
   const handleReset = async () => {
     if (!email || !/\S+@\S+\.\S+/.test(email)) {
@@ -310,25 +363,31 @@ export const PasswordResetScreen: React.FC<{ navigation: any }> = ({ navigation 
     }
     
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await resetPassword(email);
       setSent(true);
-    }, 1500);
+    } catch (error: any) {
+      Alert.alert('Reset Failed', error.message || 'Failed to send reset email');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (sent) {
     return (
-      <View style={styles.splashContainer}>
-        <Text style={{ fontSize: 64 }}>✉️</Text>
-        <Text style={styles.title}>Check Your Email</Text>
-        <Text style={[styles.subtitle, { textAlign: 'center', paddingHorizontal: 40 }]}>
-          We've sent password reset instructions to {email}
-        </Text>
-        <PrimaryButton 
-          title="Back to Login" 
-          onPress={() => navigation.navigate('Login')}
-        />
+      <View style={styles.container}>
+        <View style={styles.successContent}>
+          <Feather name="check-circle" size={80} color={COLORS.primary} style={{ marginBottom: 20 }} />
+          <Text style={styles.welcomeTitle}>Check Your Email</Text>
+          <Text style={styles.welcomeSubtitle}>
+            We've sent password reset instructions to {email}
+          </Text>
+          <PrimaryButton 
+            title="Back to Login" 
+            onPress={() => navigation.navigate('Login')}
+            style={{ marginTop: 30, width: '100%' }}
+          />
+        </View>
       </View>
     );
   }
@@ -346,27 +405,29 @@ export const PasswordResetScreen: React.FC<{ navigation: any }> = ({ navigation 
           onPress={() => navigation.goBack()} 
           style={styles.backButton}
         >
-          <Text style={styles.backText}>← Back</Text>
+          <Feather name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
 
-        <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>
-          Enter your email address and we'll send you instructions to reset your password.
-        </Text>
+        <View style={styles.headerContainer}>
+          <Text style={styles.welcomeTitle}>Reset Password</Text>
+          <Text style={styles.welcomeSubtitle}>
+            Enter your email to receive reset instructions
+          </Text>
+        </View>
 
-        <View style={styles.form}>
-          <TextInput
-            label="Email Address"
-            placeholder="user@example.com"
+        <View style={styles.formContainer}>
+          <AuthInput
+            iconName="mail"
             value={email}
             onChangeText={setEmail}
-            keyboardType="email-address"
+            placeholder="Email Address"
           />
 
           <PrimaryButton 
             title="Send Reset Link" 
             onPress={handleReset}
             loading={loading}
+            style={styles.loginButton}
           />
         </View>
       </ScrollView>
@@ -378,13 +439,15 @@ export const PasswordResetScreen: React.FC<{ navigation: any }> = ({ navigation 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.secondary, // Black background
   },
   scrollContent: {
     flexGrow: 1,
     padding: 24,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
   },
+  
+  // Splash
   splashContainer: {
     flex: 1,
     backgroundColor: COLORS.secondary,
@@ -394,79 +457,124 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  logo: {
-    fontSize: 80,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  appName: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-    marginTop: 10,
+    marginBottom: 40,
   },
   tagline: {
-    fontSize: 18,
+    fontSize: 16,
     color: COLORS.primary,
-    marginTop: 8,
+    marginTop: 12,
+    letterSpacing: 1,
+    fontFamily: 'Montserrat_600SemiBold',
   },
-  splashSubtitle: {
-    fontSize: 14,
-    color: COLORS.gray500,
-    marginTop: 8,
+  loadingContainer: {
+    marginTop: 20,
   },
-  loadingDots: {
-    flexDirection: 'row',
-    marginTop: 40,
-    gap: 8,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.gray700,
-  },
-  dotActive: {
-    backgroundColor: COLORS.primary,
-  },
-  header: {
+
+  // Header
+  headerContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    justifyContent: 'center',
+    width: '100%',
+    marginBottom: 40,
+    marginTop: 20,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.accent,
-    textAlign: 'center',
+  welcomeTitle: {
+    fontSize: 32,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.text, // White
+    marginTop: 24,
     marginBottom: 8,
+    textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 14,
+  welcomeSubtitle: {
+    fontSize: 16,
     color: COLORS.gray500,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 24,
+    fontFamily: 'Montserrat_400Regular',
   },
-  form: {
+
+  // Form
+  formContainer: {
     width: '100%',
-    maxWidth: 400,
-    alignSelf: 'center',
   },
+  inputWrapper: {
+    marginBottom: 16,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.gray800, // Dark gray input bg
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    height: 60,
+    paddingHorizontal: 16,
+  },
+  inputFocused: {
+    borderColor: COLORS.primary, // Yellow border on focus
+    backgroundColor: '#1A1A1A', // Slightly darker when focused
+  },
+  inputError: {
+    borderColor: COLORS.error,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 16,
+    height: '100%',
+    fontFamily: 'Montserrat_400Regular',
+  },
+  eyeIcon: {
+    padding: 8,
+  },
+  errorText: {
+    color: COLORS.error,
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+    fontFamily: 'Montserrat_400Regular',
+  },
+
+  // Buttons
   forgotButton: {
     alignSelf: 'flex-end',
-    marginBottom: 8,
-    marginTop: -4,
+    marginBottom: 24,
   },
   forgotText: {
     color: COLORS.primary,
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 14,
+    fontFamily: 'Montserrat_600SemiBold',
   },
+  primaryButton: {
+    backgroundColor: COLORS.primary,
+    height: 60,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryButtonText: {
+    color: COLORS.secondary,
+    fontSize: 18,
+    fontFamily: 'Kanit_600SemiBold',
+  },
+  loginButton: {
+    marginBottom: 30,
+  },
+
+  // Divider
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginBottom: 30,
   },
   dividerLine: {
     flex: 1,
@@ -476,52 +584,74 @@ const styles = StyleSheet.create({
   dividerText: {
     color: COLORS.gray500,
     marginHorizontal: 16,
-    fontSize: 13,
+    fontSize: 14,
+    fontFamily: 'Montserrat_400Regular',
   },
+
+  // Social
   socialRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 16,
-    marginBottom: 24,
+    gap: 20,
+    marginBottom: 40,
   },
   socialButton: {
     width: 60,
     height: 60,
+    borderRadius: 30,
     backgroundColor: COLORS.gray800,
-    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.gray700,
   },
   socialIcon: {
-    fontSize: 28,
+    fontSize: 24,
+    color: COLORS.text,
   },
-  switchText: {
-    textAlign: 'center',
+
+  // Footer
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  footerText: {
     color: COLORS.gray500,
-    fontSize: 14,
+    fontSize: 16,
+    fontFamily: 'Montserrat_400Regular',
   },
-  switchLink: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  backButton: {
-    marginBottom: 24,
-  },
-  backText: {
+  footerLink: {
     color: COLORS.primary,
     fontSize: 16,
-    fontWeight: '500',
+    fontFamily: 'Montserrat_600SemiBold',
+  },
+
+  // Signup specific
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   termsText: {
     textAlign: 'center',
     color: COLORS.gray500,
-    fontSize: 12,
-    marginVertical: 16,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 30,
+    fontFamily: 'Montserrat_400Regular',
   },
   linkText: {
     color: COLORS.primary,
+    fontFamily: 'Montserrat_600SemiBold',
+  },
+
+  // Success Screen
+  successContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
 });

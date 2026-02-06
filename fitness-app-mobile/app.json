@@ -7,11 +7,21 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "android": {
       "package": "com.fitpulse.ai",
       "versionCode": 1,
-      "permissions": ["INTERNET", "CAMERA", "RECORD_AUDIO", "ACCESS_FINE_LOCATION"]
-    }
+      "permissions": [
+        "INTERNET",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

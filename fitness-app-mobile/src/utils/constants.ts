@@ -4,7 +4,7 @@
 
 // API Configuration
 export const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3000/api' 
+  ? 'http://192.168.29.100:3000/api' 
   : 'https://api.fitpulse.ai/api';
 
 export const API_TIMEOUT = 30000; // 30 seconds
