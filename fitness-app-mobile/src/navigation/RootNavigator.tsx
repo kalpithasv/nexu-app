@@ -33,7 +33,6 @@ import {
   WorkoutScreen,
   WorkoutDetailScreen,
   ActiveWorkoutScreen,
-  DietScreen,
   ProfileScreen,
   SettingsScreen,
   HealthDataScreen,
@@ -41,6 +40,7 @@ import {
   HelpSupportScreen,
   TermsPrivacyScreen,
 } from '../screens/main/InteractiveScreens';
+import { ProgressScreen } from '../screens/main/ProgressScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -167,11 +167,11 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
-        name="DietTab"
-        component={DietScreen}
+        name="ProgressTab"
+        component={ProgressScreen}
         options={{
-          tabBarLabel: 'Nutrition',
-          tabBarIcon: ({ color, focused }) => <TabIcon name="heart" color={color} focused={focused} />,
+          tabBarLabel: 'Progress',
+          tabBarIcon: ({ color, focused }) => <TabIcon name="bar-chart-2" color={color} focused={focused} />,
         }}
       />
       <Tab.Screen

@@ -22,9 +22,9 @@ export const SUBSCRIPTION_PLANS = [
   {
     id: 'basic',
     name: 'Basic',
-    price: 9.99,
-    currency: '$',
-    period: '/mo',
+    price: 0,
+    currency: '₹',
+    period: '',
     features: [
       'Basic video workouts',
       'Simple diet plans',
@@ -37,8 +37,8 @@ export const SUBSCRIPTION_PLANS = [
   {
     id: 'standard',
     name: 'Standard',
-    price: 19.99,
-    currency: '$',
+    price: 200,
+    currency: '₹',
     period: '/mo',
     features: [
       'All Basic features',
@@ -51,30 +51,31 @@ export const SUBSCRIPTION_PLANS = [
     popular: false,
   },
   {
-    id: 'premium',
-    name: 'Premium',
-    price: 29.99,
-    currency: '$',
+    id: 'pro',
+    name: 'Pro',
+    price: 500,
+    currency: '₹',
     period: '/mo',
     features: [
       'All Standard features',
       'Personal AI Coach',
-      'Video consultations',
       'Custom workout plans',
+      'Progress analytics',
       'Priority support',
     ],
     color: '#FFD60A',
     popular: true,
   },
   {
-    id: 'elite',
-    name: 'Elite',
-    price: 49.99,
-    currency: '$',
+    id: 'premium',
+    name: 'Premium',
+    price: 1000,
+    currency: '₹',
     period: '/mo',
     features: [
-      'All Premium features',
+      'All Pro features',
       '1-on-1 coaching',
+      'Video consultations',
       'Nutrition consultation',
       'Custom meal prep',
       '24/7 priority support',
@@ -83,6 +84,11 @@ export const SUBSCRIPTION_PLANS = [
     popular: false,
   },
 ];
+
+// Razorpay Configuration (Test/Sandbox mode)
+// Replace with your Razorpay Test Key ID from https://dashboard.razorpay.com/app/keys
+export const RAZORPAY_KEY_ID = 'rzp_test_SD6PpOOPzKuPhg';  // e.g. 'rzp_test_xxxxxxxxxx'
+export const RAZORPAY_CURRENCY = 'INR';
 
 // Workout Categories
 export const WORKOUT_CATEGORIES = [

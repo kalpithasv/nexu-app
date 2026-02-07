@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput as RNTextInput,
   Alert,
   Dimensions,
   Platform,
@@ -22,6 +21,7 @@ import { NexuLogo } from '../../components/NexuLogo';
 import { COLORS } from '../../utils/colors';
 import { SUBSCRIPTION_PLANS } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
+import { RazorpayCheckout } from '../../components/RazorpayCheckout';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -380,6 +380,13 @@ const dotStyles = StyleSheet.create({
   },
 });
 
+// ============== GENDERS ==============
+const GENDERS = [
+  { id: 'male', label: 'Male', icon: '♂️', description: 'Male' },
+  { id: 'female', label: 'Female', icon: '♀️', description: 'Female' },
+  { id: 'other', label: 'Prefer not to say', icon: '⚧️', description: 'Skip this' },
+];
+
 // ============== FITNESS GOALS (inline) ==============
 const FITNESS_GOALS = [
   { id: 'lose_weight', label: 'Lose Weight', icon: '🔥', description: 'Burn fat and get leaner' },
@@ -403,12 +410,13 @@ const WEIGHT_VALUES = Array.from({ length: 171 }, (_, i) => i + 30);   // 30–2
 // ============== MAIN HEALTH ASSESSMENT SCREEN ==============
 export const HealthAssessmentScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [step, setStep] = useState(0);
-  const totalSteps = 3;
+  const totalSteps = 4;
 
   // Form state
   const [age, setAge] = useState(25);
   const [height, setHeight] = useState(175);
   const [weight, setWeight] = useState(70);
+  const [gender, setGender] = useState('');
   const [goal, setGoal] = useState('');
   const [activityLevel, setActivityLevel] = useState('');
   const { saveFitnessProfile, updateUser } = useAuth();
@@ -421,6 +429,7 @@ export const HealthAssessmentScreen: React.FC<{ navigation: any }> = ({ navigati
         age,
         height,
         weight,
+        gender,
         goal,
         activityLevel,
       });
@@ -439,8 +448,9 @@ export const HealthAssessmentScreen: React.FC<{ navigation: any }> = ({ navigati
   const canProceed = (): boolean => {
     switch (step) {
       case 0: return true;
-      case 1: return goal.length > 0;
-      case 2: return activityLevel.length > 0;
+      case 1: return gender.length > 0;
+      case 2: return goal.length > 0;
+      case 3: return activityLevel.length > 0;
       default: return true;
     }
   };
@@ -448,8 +458,9 @@ export const HealthAssessmentScreen: React.FC<{ navigation: any }> = ({ navigati
   const getStepTitle = (): string => {
     switch (step) {
       case 0: return 'Tell us about yourself';
-      case 1: return "What's your goal?";
-      case 2: return 'How active are you?';
+      case 1: return 'Select your gender';
+      case 2: return "What's your goal?";
+      case 3: return 'How active are you?';
       default: return '';
     }
   };
@@ -457,8 +468,9 @@ export const HealthAssessmentScreen: React.FC<{ navigation: any }> = ({ navigati
   const getStepSubtitle = (): string => {
     switch (step) {
       case 0: return 'We need this to tailor your diet and workout plan specifically to your needs.';
-      case 1: return 'Choose your primary fitness objective';
-      case 2: return 'Be honest — we\'ll build the perfect plan for you';
+      case 1: return 'This helps us personalize your experience';
+      case 2: return 'Choose your primary fitness objective';
+      case 3: return 'Be honest — we\'ll build the perfect plan for you';
       default: return '';
     }
   };
@@ -496,8 +508,25 @@ export const HealthAssessmentScreen: React.FC<{ navigation: any }> = ({ navigati
           </View>
         );
 
-      // ========== STEP 2: GOAL ==========
+      // ========== STEP 2: GENDER ==========
       case 1:
+        return (
+          <View style={styles.stepContent}>
+            {GENDERS.map((item) => (
+              <SelectionCard
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                description={item.description}
+                selected={gender === item.id}
+                onPress={() => setGender(item.id)}
+              />
+            ))}
+          </View>
+        );
+
+      // ========== STEP 3: GOAL ==========
+      case 2:
         return (
           <View style={styles.stepContent}>
             {FITNESS_GOALS.map((item) => (
@@ -513,8 +542,8 @@ export const HealthAssessmentScreen: React.FC<{ navigation: any }> = ({ navigati
           </View>
         );
 
-      // ========== STEP 3: ACTIVITY LEVEL ==========
-      case 2:
+      // ========== STEP 4: ACTIVITY LEVEL ==========
+      case 3:
         return (
           <View style={styles.stepContent}>
             {ACTIVITY_LEVELS.map((item) => (
@@ -604,6 +633,7 @@ export const HealthAssessmentScreen: React.FC<{ navigation: any }> = ({ navigati
               age,
               height,
               weight,
+              gender: gender || undefined,
               goal: goal || 'get_fit',
               activityLevel: activityLevel || 'moderate',
             });
@@ -640,10 +670,28 @@ const pickerRowStyles = StyleSheet.create({
 
 // ============== SUBSCRIPTION PLANS SCREEN ==============
 export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [selectedPlan, setSelectedPlan] = useState('premium');
+  const [selectedPlan, setSelectedPlan] = useState('pro');
+  const { completeOnboarding, updateUser } = useAuth();
 
-  const handleContinue = () => {
-    navigation.navigate('Payment', { planId: selectedPlan });
+  const handleContinue = async () => {
+    const plan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan);
+
+    if (!plan) return;
+
+    if (plan.price === 0) {
+      // Free plan — save and complete onboarding directly
+      await updateUser({ subscriptionPlan: 'basic' });
+      await completeOnboarding();
+    } else {
+      // Paid plan — go to payment
+      navigation.navigate('Payment', { planId: selectedPlan });
+    }
+  };
+
+  const handleSkip = async () => {
+    // Default to basic (free) and complete onboarding
+    await updateUser({ subscriptionPlan: 'basic' });
+    await completeOnboarding();
   };
 
   return (
@@ -680,6 +728,12 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
                 </View>
               )}
 
+              {plan.price === 0 && (
+                <View style={[styles.popularBadge, { backgroundColor: COLORS.success }]}>
+                  <Text style={styles.popularText}>FREE</Text>
+                </View>
+              )}
+
               <View style={styles.planRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={[
@@ -689,9 +743,15 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
                     {plan.name}
                   </Text>
                   <View style={styles.priceRow}>
-                    <Text style={styles.planCurrency}>{plan.currency}</Text>
-                    <Text style={styles.planPrice}>{plan.price}</Text>
-                    <Text style={styles.planPeriod}>{plan.period}</Text>
+                    {plan.price === 0 ? (
+                      <Text style={styles.planPrice}>Free</Text>
+                    ) : (
+                      <>
+                        <Text style={styles.planCurrency}>{plan.currency}</Text>
+                        <Text style={styles.planPrice}>{plan.price}</Text>
+                        <Text style={styles.planPeriod}>{plan.period}</Text>
+                      </>
+                    )}
                   </View>
                 </View>
                 <View style={[styles.planRadio, selectedPlan === plan.id && styles.planRadioSelected]}>
@@ -720,61 +780,62 @@ export const SubscriptionPlansScreen: React.FC<{ navigation: any }> = ({ navigat
           activeOpacity={0.8}
         >
           <Text style={styles.ctaText}>
-            Continue with {SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.name}
+            {SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.price === 0
+              ? 'Start Free'
+              : `Continue with ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.name}`
+            }
           </Text>
           <Feather name="arrow-right" size={22} color={COLORS.secondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.laterButton}
-          onPress={() => navigation.goBack()}
+          onPress={handleSkip}
         >
-          <Text style={styles.laterText}>Maybe later</Text>
+          <Text style={styles.laterText}>Start with Free plan</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 };
 
-// ============== PAYMENT SCREEN ==============
+// ============== PAYMENT SCREEN (Razorpay) ==============
 export const PaymentScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [name, setName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [showRazorpay, setShowRazorpay] = useState(false);
+  const { user, completeOnboarding, updateUser } = useAuth();
 
   const selectedPlan = SUBSCRIPTION_PLANS.find(p => p.id === route.params?.planId) || SUBSCRIPTION_PLANS[2];
 
-  const formatCardNumber = (text: string) => {
-    const cleaned = text.replace(/\s/g, '').replace(/\D/g, '');
-    const chunks = cleaned.match(/.{1,4}/g) || [];
-    return chunks.join(' ').substring(0, 19);
+  const finishOnboarding = async () => {
+    await updateUser({ subscriptionPlan: selectedPlan.id });
+    await completeOnboarding();
   };
 
-  const formatExpiry = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    if (cleaned.length >= 2) {
-      return cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4);
-    }
-    return cleaned;
+  const handlePayNow = () => {
+    setShowRazorpay(true);
   };
 
-  const handlePayment = async () => {
-    if (!cardNumber || !expiry || !cvv || !name) {
-      Alert.alert('Error', 'Please fill all fields');
-      return;
-    }
+  const handlePaymentSuccess = async (paymentId: string) => {
+    setShowRazorpay(false);
+    // Save payment info and complete onboarding
+    await updateUser({
+      subscriptionPlan: selectedPlan.id,
+      lastPaymentId: paymentId,
+    } as any);
+    Alert.alert(
+      'Payment Successful!',
+      `Your ${selectedPlan.name} plan is now active.\nPayment ID: ${paymentId}`,
+      [{ text: "Let's Go!", onPress: () => completeOnboarding() }]
+    );
+  };
 
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert(
-        'Success!',
-        "Your subscription is now active. Let's start your fitness journey!",
-        [{ text: "Let's Go!", onPress: () => navigation.navigate('MainApp') }]
-      );
-    }, 2000);
+  const handlePaymentFailure = (error: string) => {
+    setShowRazorpay(false);
+    Alert.alert('Payment Failed', error || 'Something went wrong. Please try again.');
+  };
+
+  const handlePaymentDismiss = () => {
+    setShowRazorpay(false);
   };
 
   return (
@@ -788,10 +849,10 @@ export const PaymentScreen: React.FC<{ navigation: any; route: any }> = ({ navig
           <Feather name="arrow-left" size={24} color={COLORS.text} />
         </TouchableOpacity>
 
-        <Text style={styles.title}>Payment Details</Text>
-        <Text style={styles.subtitle}>Complete your {selectedPlan.name} subscription</Text>
+        <Text style={styles.title}>Complete Payment</Text>
+        <Text style={styles.subtitle}>Subscribe to {selectedPlan.name} plan</Text>
 
-        {/* Order Summary */}
+        {/* Order Summary Card */}
         <View style={styles.orderSummary}>
           <View style={styles.orderRow}>
             <Text style={styles.orderLabel}>{selectedPlan.name} Plan</Text>
@@ -799,116 +860,82 @@ export const PaymentScreen: React.FC<{ navigation: any; route: any }> = ({ navig
               {selectedPlan.currency}{selectedPlan.price}{selectedPlan.period}
             </Text>
           </View>
+          <View style={[styles.orderRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.gray700 }]}>
+            <Text style={[styles.orderLabel, { fontFamily: 'Kanit_600SemiBold' }]}>Total</Text>
+            <Text style={[styles.orderValue, { color: COLORS.primary, fontFamily: 'Kanit_700Bold', fontSize: 22 }]}>
+              {selectedPlan.currency}{selectedPlan.price}
+            </Text>
+          </View>
         </View>
 
-        {/* Payment Form */}
-        <View style={styles.paymentForm}>
-          <PaymentInput
-            label="Cardholder Name"
-            placeholder="John Doe"
-            value={name}
-            onChangeText={setName}
-          />
-          <PaymentInput
-            label="Card Number"
-            placeholder="1234 5678 9012 3456"
-            value={cardNumber}
-            onChangeText={(text: string) => setCardNumber(formatCardNumber(text))}
-            keyboardType="numeric"
-          />
-          <View style={styles.formRow}>
-            <View style={{ flex: 1 }}>
-              <PaymentInput
-                label="Expiry"
-                placeholder="MM/YY"
-                value={expiry}
-                onChangeText={(text: string) => setExpiry(formatExpiry(text))}
-                keyboardType="numeric"
-              />
+        {/* Plan Features */}
+        <View style={{ marginTop: 24 }}>
+          <Text style={{ fontFamily: 'Kanit_600SemiBold', fontSize: 16, color: COLORS.text, marginBottom: 12 }}>
+            What you get:
+          </Text>
+          {selectedPlan.features.map((feature, idx) => (
+            <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingLeft: 4 }}>
+              <Feather name="check-circle" size={16} color={COLORS.success} />
+              <Text style={{ fontFamily: 'Montserrat_400Regular', fontSize: 14, color: COLORS.gray400, marginLeft: 10 }}>
+                {feature}
+              </Text>
             </View>
-            <View style={{ width: 16 }} />
-            <View style={{ flex: 1 }}>
-              <PaymentInput
-                label="CVV"
-                placeholder="123"
-                value={cvv}
-                onChangeText={(text: string) => setCvv(text.replace(/\D/g, '').substring(0, 3))}
-                keyboardType="numeric"
-                secureTextEntry
-              />
-            </View>
+          ))}
+        </View>
+
+        {/* Razorpay Badge */}
+        <View style={{ alignItems: 'center', marginTop: 32 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.gray800, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 }}>
+            <Feather name="shield" size={16} color={COLORS.success} />
+            <Text style={{ fontFamily: 'Montserrat_500Medium', fontSize: 13, color: COLORS.gray400, marginLeft: 8 }}>
+              Secured by Razorpay
+            </Text>
           </View>
         </View>
       </ScrollView>
 
+      {/* Bottom CTA */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.ctaButton}
-          onPress={handlePayment}
+          onPress={handlePayNow}
           activeOpacity={0.8}
         >
           <Feather name="lock" size={18} color={COLORS.secondary} />
           <Text style={styles.ctaText}>
-            Pay {selectedPlan.currency}{selectedPlan.price}
+            {' '}Pay {selectedPlan.currency}{selectedPlan.price}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.laterButton}
-          onPress={() => navigation.navigate('MainApp')}
+          onPress={async () => {
+            await updateUser({ subscriptionPlan: 'basic' });
+            await completeOnboarding();
+          }}
         >
-          <Text style={styles.laterText}>Skip for now</Text>
+          <Text style={styles.laterText}>Start with Free plan instead</Text>
         </TouchableOpacity>
 
         <Text style={styles.secureNote}>
           🔒  Your payment is secure and encrypted
         </Text>
       </View>
+
+      {/* Razorpay Checkout Modal */}
+      <RazorpayCheckout
+        visible={showRazorpay}
+        amount={selectedPlan.price}
+        planName={selectedPlan.name}
+        userName={user?.name || ''}
+        userEmail={user?.email || ''}
+        onSuccess={handlePaymentSuccess}
+        onFailure={handlePaymentFailure}
+        onDismiss={handlePaymentDismiss}
+      />
     </View>
   );
 };
-
-// Simple payment input
-const PaymentInput = ({
-  label,
-  placeholder,
-  value,
-  onChangeText,
-  keyboardType = 'default' as any,
-  secureTextEntry = false,
-}: any) => (
-  <View style={styles.paymentInputWrapper}>
-    <Text style={styles.paymentLabel}>{label}</Text>
-    <View style={styles.paymentInputBox}>
-      <Feather
-        name={
-          label.includes('Name') ? 'user' :
-          label.includes('Card') ? 'credit-card' :
-          label.includes('Expiry') ? 'calendar' : 'lock'
-        }
-        size={18}
-        color={COLORS.gray500}
-        style={{ marginRight: 12 }}
-      />
-      <RNTextInput
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.gray500}
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        secureTextEntry={secureTextEntry}
-        style={{
-          flex: 1,
-          color: COLORS.text,
-          fontSize: 16,
-          fontFamily: 'Montserrat_400Regular',
-          height: '100%',
-        }}
-        autoCapitalize="none"
-      />
-    </View>
-  </View>
-);
 
 // ============== STYLES ==============
 const styles = StyleSheet.create({

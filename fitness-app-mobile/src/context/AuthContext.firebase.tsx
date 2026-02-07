@@ -27,6 +27,7 @@ export interface FitnessProfile {
   age: number;
   height: number;       // cm
   weight: number;       // kg
+  gender?: string;      // male | female | other
   goal: string;         // lose_weight | build_muscle | get_fit | maintain
   activityLevel: string; // sedentary | light | moderate | active
 }
@@ -53,6 +54,7 @@ export interface AuthContextType {
   updateUser: (data: Partial<User>) => void;
   resetPassword: (email: string) => Promise<void>;
   saveFitnessProfile: (profile: FitnessProfile) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -299,25 +301,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // ---- SAVE FITNESS PROFILE ----
+  // ---- SAVE FITNESS PROFILE (does NOT mark onboarded) ----
   const saveFitnessProfile = async (profile: FitnessProfile) => {
     if (!state.user) return;
 
-    const updateData: Partial<User> = {
-      isOnboarded: true,
-      fitnessProfile: profile,
-    };
+    dispatch({ type: 'UPDATE_USER', payload: { fitnessProfile: profile } });
 
-    dispatch({ type: 'UPDATE_USER', payload: updateData });
-
-    // Save fitness profile to Firestore
+    // Save fitness profile to Firestore (but don't set isOnboarded yet)
     try {
       await saveUserDoc(state.user.id, {
-        isOnboarded: true,
         fitnessProfile: profile,
       });
     } catch (e) {
       console.error('Failed to save fitness profile:', e);
+    }
+  };
+
+  // ---- COMPLETE ONBOARDING (marks user as onboarded) ----
+  const completeOnboarding = async () => {
+    if (!state.user) return;
+
+    dispatch({ type: 'UPDATE_USER', payload: { isOnboarded: true } });
+
+    try {
+      await saveUserDoc(state.user.id, { isOnboarded: true });
+    } catch (e) {
+      console.error('Failed to complete onboarding:', e);
     }
   };
 
@@ -352,6 +361,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateUser,
         resetPassword,
         saveFitnessProfile,
+        completeOnboarding,
       }}
     >
       {children}

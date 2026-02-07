@@ -18,6 +18,8 @@ import {
   Dimensions,
   FlatList,
   Platform,
+  Image,
+  ImageBackground,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { PrimaryButton, ProgressBar, TextInput } from '../../components/Button';
@@ -27,94 +29,63 @@ import { useAuth } from '../../context/AuthContext';
 import { useWorkout } from '../../context/WorkoutContext';
 import { useDiet } from '../../context/DietContext';
 import { apiClient } from '../../services/api';
+import { usePlan } from '../../hooks/usePlan';
+import { getPlanName } from '../../utils/planAccess';
 
 const { width } = Dimensions.get('window');
 
 // ============================================
-// HOME SCREEN - Professional Dashboard
+// HOME SCREEN - Professional Fitness Dashboard
 // ============================================
+
+// Workout category images (Unsplash — lightweight, free)
+const CATEGORY_IMAGES: Record<string, string> = {
+  chest: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80',
+  back: 'https://images.unsplash.com/photo-1603287681836-b174ce5074c2?w=400&q=80',
+  legs: 'https://images.unsplash.com/photo-1434608519344-49d77a699e1d?w=400&q=80',
+  cardio: 'https://images.unsplash.com/photo-1538805060514-97d9cc17730c?w=400&q=80',
+  fullbody: 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=400&q=80',
+  core: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80',
+  yoga: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80',
+  arms: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=400&q=80',
+  shoulders: 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=400&q=80',
+};
+
+const FEATURED_WORKOUT_IMAGE = 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80';
+const HERO_IMAGE = 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&q=80';
+
+// Sample workouts for display
+const SAMPLE_WORKOUTS = [
+  { id: '1', name: 'Full Body Burn', category: 'fullbody', duration: 45, calories: 420, difficulty: 'Intermediate', isPremium: false, image: 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=400&q=80' },
+  { id: '2', name: 'HIIT Cardio Blast', category: 'cardio', duration: 30, calories: 350, difficulty: 'Advanced', isPremium: true, image: 'https://images.unsplash.com/photo-1538805060514-97d9cc17730c?w=400&q=80' },
+  { id: '3', name: 'Upper Body Strength', category: 'chest', duration: 40, calories: 280, difficulty: 'Intermediate', isPremium: false, image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80' },
+  { id: '4', name: 'Yoga Flow', category: 'yoga', duration: 35, calories: 180, difficulty: 'Beginner', isPremium: false, image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80' },
+  { id: '5', name: 'Leg Day Power', category: 'legs', duration: 50, calories: 460, difficulty: 'Advanced', isPremium: true, image: 'https://images.unsplash.com/photo-1434608519344-49d77a699e1d?w=400&q=80' },
+];
+
+const WORKOUT_CATEGORIES_DATA = [
+  { id: 'chest', name: 'Chest', count: 12 },
+  { id: 'back', name: 'Back', count: 15 },
+  { id: 'legs', name: 'Legs', count: 10 },
+  { id: 'cardio', name: 'Cardio', count: 8 },
+  { id: 'fullbody', name: 'Full Body', count: 20 },
+  { id: 'core', name: 'Abs & Core', count: 14 },
+  { id: 'yoga', name: 'Yoga', count: 6 },
+];
+
 export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useAuth();
   const { categories, workouts, fetchCategories, fetchWorkouts, currentSession } = useWorkout();
   const { todaysTotals, macroGoals, fetchDietPlan, fetchTodaysLog, waterLog, logWater, fetchWaterLog } = useDiet();
+  const { planName, isBasic, isPaid, features, tier } = usePlan();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [userStats, setUserStats] = useState({
-    totalWorkouts: 0,
-    currentStreak: 0,
-    totalCaloriesBurned: 0,
-  });
-  const [todaysWorkout, setTodaysWorkout] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-
-  // Load data in the background — don't block the dashboard render
-  const loadData = useCallback(async () => {
-    if (!user?.id) return;
-
-    try {
-      // Fire-and-forget: load data in background, don't block UI
-      const promises: Promise<any>[] = [];
-
-      // Only call these if the context functions exist and backend is available
-      if (fetchCategories) promises.push(fetchCategories().catch(() => {}));
-      if (fetchWorkouts) promises.push(fetchWorkouts().catch(() => {}));
-      if (fetchDietPlan) promises.push(fetchDietPlan(user.id).catch(() => {}));
-      if (fetchTodaysLog) promises.push(fetchTodaysLog(user.id).catch(() => {}));
-      if (fetchWaterLog) promises.push(fetchWaterLog(user.id).catch(() => {}));
-
-      await Promise.all(promises);
-
-      // Try to fetch stats from backend, but don't block on failure
-      try {
-        const statsResponse = await apiClient.get<{ stats: any }>(`/users/${user.id}/stats`);
-        if (statsResponse.success && statsResponse.data) {
-          setUserStats(statsResponse.data.stats || {});
-        }
-      } catch {
-        // Backend not available — use defaults silently
-      }
-    } catch (error) {
-      // Silently handle — dashboard still shows with default data
-    }
-  }, [user?.id]);
-
-  // Pick a today's workout when workouts are available
-  useEffect(() => {
-    if (workouts && workouts.length > 0 && !todaysWorkout) {
-      setTodaysWorkout(workouts[Math.floor(Math.random() * workouts.length)]);
-    }
-  }, [workouts]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const [waterGlasses, setWaterGlasses] = useState(3);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
+    setTimeout(() => setRefreshing(false), 800);
   };
-
-  const handleLogWater = async () => {
-    if (user?.id) {
-      await logWater(user.id, 1);
-    }
-  };
-
-  const calorieProgress = macroGoals?.calories
-    ? Math.min((todaysTotals.calories / macroGoals.calories) * 100, 100)
-    : 0;
-  const proteinProgress = macroGoals?.protein
-    ? Math.min((todaysTotals.protein / macroGoals.protein) * 100, 100)
-    : 0;
-  const carbsProgress = macroGoals?.carbs
-    ? Math.min((todaysTotals.carbs / macroGoals.carbs) * 100, 100)
-    : 0;
-  const fatProgress = macroGoals?.fat
-    ? Math.min((todaysTotals.fat / macroGoals.fat) * 100, 100)
-    : 0;
-  const waterGlasses = waterLog?.glasses || 0;
-  const waterProgress = Math.min((waterGlasses / 8) * 100, 100);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -122,6 +93,13 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
   };
+
+  const firstName = user?.name?.split(' ')[0] || 'User';
+  const initial = user?.name?.charAt(0)?.toUpperCase() || 'N';
+  const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+  // Featured workout of the day
+  const featuredWorkout = SAMPLE_WORKOUTS[0];
 
   return (
     <ScrollView
@@ -133,651 +111,400 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       }
     >
       {/* ===== HEADER ===== */}
-      <View style={homeStyles.header}>
-        <View style={homeStyles.headerLeft}>
-          <View style={homeStyles.avatar}>
-            <Text style={homeStyles.avatarText}>
-              {user?.name?.charAt(0)?.toUpperCase() || 'N'}
-            </Text>
+      <View style={h.header}>
+        <View style={h.headerLeft}>
+          <View style={h.avatar}>
+            <Text style={h.avatarText}>{initial}</Text>
           </View>
           <View>
-            <Text style={homeStyles.greetingSmall}>{getGreeting()}</Text>
-            <Text style={homeStyles.userName}>{user?.name?.split(' ')[0] || 'User'}</Text>
+            <Text style={h.greetingSmall}>{getGreeting()}</Text>
+            <Text style={h.userName}>{firstName}</Text>
           </View>
         </View>
-        <TouchableOpacity style={homeStyles.bellButton}>
-          <Feather name="bell" size={22} color={COLORS.text} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={h.planBadge}>
+            <Feather name="award" size={12} color={COLORS.primary} />
+            <Text style={h.planBadgeText}>{planName}</Text>
+          </View>
+          <TouchableOpacity style={h.bellButton}>
+            <Feather name="bell" size={20} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ===== HERO / FEATURED WORKOUT CARD ===== */}
+      <TouchableOpacity
+        style={h.heroCard}
+        activeOpacity={0.9}
+        onPress={() => navigation.navigate('WorkoutsTab')}
+      >
+        <ImageBackground
+          source={{ uri: FEATURED_WORKOUT_IMAGE }}
+          style={h.heroImage}
+          imageStyle={{ borderRadius: 20 }}
+        >
+          <View style={h.heroOverlay}>
+            <View style={h.heroBadge}>
+              <Feather name="play-circle" size={14} color={COLORS.primary} />
+              <Text style={h.heroBadgeText}>TODAY'S WORKOUT</Text>
+            </View>
+            <Text style={h.heroTitle}>{featuredWorkout.name}</Text>
+            <Text style={h.heroSub}>{featuredWorkout.duration} min · {featuredWorkout.calories} cal · {featuredWorkout.difficulty}</Text>
+            <View style={h.heroBtn}>
+              <Text style={h.heroBtnText}>{isBasic ? 'Watch Now' : 'Start Workout'}</Text>
+              <Feather name="arrow-right" size={16} color={COLORS.secondary} />
+            </View>
+          </View>
+        </ImageBackground>
+      </TouchableOpacity>
+
+      {/* ===== UPGRADE BANNER (Basic plan only) ===== */}
+      {isBasic && (
+        <TouchableOpacity style={h.upgradeBanner} onPress={() => navigation.navigate('ProfileTab')} activeOpacity={0.85}>
+          <View style={h.upgradeBannerIcon}>
+            <Feather name="zap" size={20} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={h.upgradeBannerTitle}>Unlock Guided Workouts</Text>
+            <Text style={h.upgradeBannerSub}>Get timers, rest periods & auto-next</Text>
+          </View>
+          <View style={h.upgradeBannerBtn}>
+            <Text style={h.upgradeBannerBtnText}>Upgrade</Text>
+          </View>
         </TouchableOpacity>
+      )}
+
+      {/* ===== QUICK STATS ===== */}
+      <View style={h.statsRow}>
+        <View style={h.statCard}>
+          <View style={[h.statIconBg, { backgroundColor: 'rgba(255, 214, 10, 0.12)' }]}>
+            <Feather name="activity" size={18} color={COLORS.primary} />
+          </View>
+          <Text style={h.statValue}>12</Text>
+          <Text style={h.statLabel}>Workouts</Text>
+        </View>
+        <View style={h.statCard}>
+          <View style={[h.statIconBg, { backgroundColor: 'rgba(255, 107, 107, 0.12)' }]}>
+            <Feather name="zap" size={18} color="#FF6B6B" />
+          </View>
+          <Text style={h.statValue}>2,840</Text>
+          <Text style={h.statLabel}>Calories</Text>
+        </View>
+        <View style={h.statCard}>
+          <View style={[h.statIconBg, { backgroundColor: 'rgba(78, 205, 196, 0.12)' }]}>
+            <Feather name="trending-up" size={18} color="#4ECDC4" />
+          </View>
+          <Text style={h.statValue}>5</Text>
+          <Text style={h.statLabel}>Day Streak</Text>
+        </View>
       </View>
 
       {/* ===== ACTIVE SESSION BANNER ===== */}
       {currentSession && (
         <TouchableOpacity
-          style={homeStyles.sessionBanner}
+          style={h.sessionBanner}
           onPress={() => navigation.navigate('ActiveWorkout')}
           activeOpacity={0.85}
         >
           <Feather name="play-circle" size={28} color={COLORS.secondary} />
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={homeStyles.sessionTitle}>Workout in Progress</Text>
-            <Text style={homeStyles.sessionName}>{currentSession.workoutName}</Text>
+            <Text style={h.sessionTitle}>Workout in Progress</Text>
+            <Text style={h.sessionName}>{currentSession.workoutName}</Text>
           </View>
           <Feather name="chevron-right" size={22} color={COLORS.secondary} />
         </TouchableOpacity>
       )}
 
-      {/* ===== STATS ROW ===== */}
-      <View style={homeStyles.statsRow}>
-        <View style={homeStyles.statCard}>
-          <View style={[homeStyles.statIconBg, { backgroundColor: 'rgba(255, 107, 107, 0.15)' }]}>
-            <Feather name="zap" size={20} color="#FF6B6B" />
-          </View>
-          <Text style={homeStyles.statValue}>{userStats.totalCaloriesBurned || 0}</Text>
-          <Text style={homeStyles.statLabel}>Calories</Text>
-        </View>
-        <View style={homeStyles.statCard}>
-          <View style={[homeStyles.statIconBg, { backgroundColor: 'rgba(255, 214, 10, 0.15)' }]}>
-            <Feather name="target" size={20} color={COLORS.primary} />
-          </View>
-          <Text style={homeStyles.statValue}>{userStats.totalWorkouts || 0}</Text>
-          <Text style={homeStyles.statLabel}>Workouts</Text>
-        </View>
-        <View style={homeStyles.statCard}>
-          <View style={[homeStyles.statIconBg, { backgroundColor: 'rgba(78, 205, 196, 0.15)' }]}>
-            <Feather name="trending-up" size={20} color="#4ECDC4" />
-          </View>
-          <Text style={homeStyles.statValue}>{userStats.currentStreak || 0}</Text>
-          <Text style={homeStyles.statLabel}>Streak</Text>
-        </View>
-      </View>
-
-      {/* ===== TODAY'S WORKOUT ===== */}
-      <View style={homeStyles.section}>
-        <View style={homeStyles.sectionHeader}>
-          <Text style={homeStyles.sectionTitle}>Today's Workout</Text>
+      {/* ===== WORKOUT CATEGORIES (Horizontal Scroll) ===== */}
+      <View style={h.section}>
+        <View style={h.sectionHeader}>
+          <Text style={h.sectionTitle}>Categories</Text>
           <TouchableOpacity onPress={() => navigation.navigate('WorkoutsTab')}>
-            <Text style={homeStyles.seeAll}>See All</Text>
+            <Text style={h.seeAll}>See All</Text>
           </TouchableOpacity>
         </View>
+        <FlatList
+          data={WORKOUT_CATEGORIES_DATA}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingLeft: 20, paddingRight: 8 }}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={h.categoryCard}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('WorkoutsTab')}
+            >
+              <Image
+                source={{ uri: CATEGORY_IMAGES[item.id] || CATEGORY_IMAGES.fullbody }}
+                style={h.categoryImage}
+              />
+              <View style={h.categoryOverlay}>
+                <Text style={h.categoryName}>{item.name}</Text>
+                <Text style={h.categoryCount}>{item.count} workouts</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
 
-        {todaysWorkout ? (
+      {/* ===== RECOMMENDED WORKOUTS ===== */}
+      <View style={h.section}>
+        <View style={h.sectionHeader}>
+          <Text style={h.sectionTitle}>Recommended</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('WorkoutsTab')}>
+            <Text style={h.seeAll}>See All</Text>
+          </TouchableOpacity>
+        </View>
+        {SAMPLE_WORKOUTS.slice(0, 3).map((workout) => (
           <TouchableOpacity
-            style={homeStyles.workoutCard}
-            onPress={() => navigation.navigate('WorkoutDetail', { workout: todaysWorkout })}
+            key={workout.id}
+            style={h.workoutListItem}
             activeOpacity={0.85}
-          >
-            <View style={homeStyles.workoutBanner}>
-              <Text style={{ fontSize: 44 }}>
-                {todaysWorkout.category === 'strength' ? '💪' :
-                 todaysWorkout.category === 'cardio' ? '🏃' :
-                 todaysWorkout.category === 'yoga' ? '🧘' : '⚡'}
-              </Text>
-            </View>
-            <View style={homeStyles.workoutBody}>
-              <Text style={homeStyles.workoutCategory}>{todaysWorkout.category?.toUpperCase()}</Text>
-              <Text style={homeStyles.workoutName}>{todaysWorkout.name}</Text>
-              <View style={homeStyles.workoutMeta}>
-                <View style={homeStyles.metaChip}>
-                  <Feather name="clock" size={13} color={COLORS.gray400} />
-                  <Text style={homeStyles.metaText}>{todaysWorkout.duration} min</Text>
-                </View>
-                <View style={homeStyles.metaChip}>
-                  <Feather name="zap" size={13} color={COLORS.gray400} />
-                  <Text style={homeStyles.metaText}>{todaysWorkout.calories} cal</Text>
-                </View>
-                <View style={homeStyles.metaChip}>
-                  <Feather name="bar-chart-2" size={13} color={COLORS.gray400} />
-                  <Text style={homeStyles.metaText}>{todaysWorkout.difficulty}</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={homeStyles.startBtn}
-                onPress={() => navigation.navigate('WorkoutDetail', { workout: todaysWorkout })}
-                activeOpacity={0.8}
-              >
-                <Text style={homeStyles.startBtnText}>Start Workout</Text>
-                <Feather name="arrow-right" size={18} color={COLORS.secondary} />
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={homeStyles.emptyWorkout}
             onPress={() => navigation.navigate('WorkoutsTab')}
-            activeOpacity={0.8}
           >
-            <View style={homeStyles.emptyIconBg}>
-              <Feather name="plus" size={28} color={COLORS.primary} />
-            </View>
-            <Text style={homeStyles.emptyTitle}>No workout planned</Text>
-            <Text style={homeStyles.emptySub}>Tap to pick a workout</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* ===== NUTRITION OVERVIEW ===== */}
-      <View style={homeStyles.section}>
-        <View style={homeStyles.sectionHeader}>
-          <Text style={homeStyles.sectionTitle}>Nutrition</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('DietTab')}>
-            <Text style={homeStyles.seeAll}>Details</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={homeStyles.nutritionCard}>
-          {/* Calorie ring placeholder */}
-          <View style={homeStyles.calorieRow}>
-            <View style={homeStyles.calorieCircle}>
-              <Text style={homeStyles.calorieNumber}>{todaysTotals.calories}</Text>
-              <Text style={homeStyles.calorieUnit}>kcal</Text>
-            </View>
-            <View style={homeStyles.calorieRight}>
-              <Text style={homeStyles.calorieGoal}>
-                of {macroGoals?.calories || 2000} kcal goal
+            <Image source={{ uri: workout.image }} style={h.workoutListImage} />
+            <View style={h.workoutListBody}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                <Text style={h.workoutListName}>{workout.name}</Text>
+                {workout.isPremium && !features.canAccessPremiumWorkouts && (
+                  <View style={h.lockBadge}>
+                    <Feather name="lock" size={10} color={COLORS.primary} />
+                  </View>
+                )}
+              </View>
+              <Text style={h.workoutListMeta}>
+                {workout.duration} min · {workout.calories} cal · {workout.difficulty}
               </Text>
-              <ProgressBar progress={calorieProgress} color={COLORS.primary} height={6} />
-              <Text style={homeStyles.caloriePercent}>{Math.round(calorieProgress)}% complete</Text>
             </View>
-          </View>
-
-          {/* Macros */}
-          <View style={homeStyles.macroGrid}>
-            <View style={homeStyles.macroCard}>
-              <View style={homeStyles.macroTop}>
-                <View style={[homeStyles.macroDot, { backgroundColor: '#FF6B6B' }]} />
-                <Text style={homeStyles.macroName}>Protein</Text>
-              </View>
-              <Text style={homeStyles.macroVal}>{todaysTotals.protein}g</Text>
-              <ProgressBar progress={proteinProgress} color="#FF6B6B" height={4} />
-            </View>
-            <View style={homeStyles.macroCard}>
-              <View style={homeStyles.macroTop}>
-                <View style={[homeStyles.macroDot, { backgroundColor: '#4ECDC4' }]} />
-                <Text style={homeStyles.macroName}>Carbs</Text>
-              </View>
-              <Text style={homeStyles.macroVal}>{todaysTotals.carbs}g</Text>
-              <ProgressBar progress={carbsProgress} color="#4ECDC4" height={4} />
-            </View>
-            <View style={homeStyles.macroCard}>
-              <View style={homeStyles.macroTop}>
-                <View style={[homeStyles.macroDot, { backgroundColor: '#A78BFA' }]} />
-                <Text style={homeStyles.macroName}>Fat</Text>
-              </View>
-              <Text style={homeStyles.macroVal}>{todaysTotals.fat}g</Text>
-              <ProgressBar progress={fatProgress} color="#A78BFA" height={4} />
-            </View>
-          </View>
-        </View>
+            <TouchableOpacity style={h.playBtn}>
+              <Feather name="play" size={16} color={COLORS.secondary} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* ===== WATER INTAKE ===== */}
-      <View style={homeStyles.section}>
-        <View style={homeStyles.sectionHeader}>
-          <Text style={homeStyles.sectionTitle}>Water</Text>
-          <Text style={homeStyles.waterCount}>{waterGlasses}/8 glasses</Text>
+      {/* ===== WATER TRACKER ===== */}
+      <View style={h.section}>
+        <View style={h.sectionHeader}>
+          <Text style={h.sectionTitle}>Water Intake</Text>
+          <Text style={h.waterCount}>{waterGlasses}/8 glasses</Text>
         </View>
-
-        <View style={homeStyles.waterCard}>
-          <View style={homeStyles.waterBarBg}>
-            <View style={[homeStyles.waterBarFill, { width: `${waterProgress}%` }]} />
+        <View style={h.waterCard}>
+          <View style={h.waterBarBg}>
+            <View style={[h.waterBarFill, { width: `${Math.min((waterGlasses / 8) * 100, 100)}%` }]} />
           </View>
-          <View style={homeStyles.waterRow}>
-            <View style={homeStyles.waterDots}>
+          <View style={h.waterRow}>
+            <View style={h.waterDots}>
               {[...Array(8)].map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    homeStyles.waterDot,
-                    i < waterGlasses && homeStyles.waterDotFilled,
-                  ]}
-                />
+                <View key={i} style={[h.waterDot, i < waterGlasses && h.waterDotFilled]} />
               ))}
             </View>
-            <TouchableOpacity style={homeStyles.addWaterBtn} onPress={handleLogWater} activeOpacity={0.8}>
-              <Feather name="plus" size={18} color={COLORS.secondary} />
+            <TouchableOpacity
+              style={h.addWaterBtn}
+              onPress={() => setWaterGlasses(Math.min(waterGlasses + 1, 8))}
+              activeOpacity={0.8}
+            >
+              <Feather name="plus" size={16} color={COLORS.secondary} />
             </TouchableOpacity>
           </View>
         </View>
       </View>
 
       {/* ===== QUICK ACTIONS ===== */}
-      <View style={homeStyles.section}>
-        <Text style={homeStyles.sectionTitle}>Quick Actions</Text>
-        <View style={homeStyles.actionsRow}>
-          <TouchableOpacity
-            style={homeStyles.actionCard}
-            onPress={() => navigation.navigate('WorkoutsTab')}
-            activeOpacity={0.8}
-          >
-            <View style={[homeStyles.actionIcon, { backgroundColor: 'rgba(255, 214, 10, 0.12)' }]}>
-              <Feather name="activity" size={22} color={COLORS.primary} />
-            </View>
-            <Text style={homeStyles.actionLabel}>Workouts</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={homeStyles.actionCard}
-            onPress={() => navigation.navigate('DietTab')}
-            activeOpacity={0.8}
-          >
-            <View style={[homeStyles.actionIcon, { backgroundColor: 'rgba(78, 205, 196, 0.12)' }]}>
-              <Feather name="heart" size={22} color="#4ECDC4" />
-            </View>
-            <Text style={homeStyles.actionLabel}>Nutrition</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={homeStyles.actionCard}
-            onPress={() => navigation.navigate('ProfileTab')}
-            activeOpacity={0.8}
-          >
-            <View style={[homeStyles.actionIcon, { backgroundColor: 'rgba(167, 139, 250, 0.12)' }]}>
-              <Feather name="user" size={22} color="#A78BFA" />
-            </View>
-            <Text style={homeStyles.actionLabel}>Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={homeStyles.actionCard}
-            onPress={() => navigation.navigate('ProfileTab')}
-            activeOpacity={0.8}
-          >
-            <View style={[homeStyles.actionIcon, { backgroundColor: 'rgba(255, 107, 107, 0.12)' }]}>
-              <Feather name="award" size={22} color="#FF6B6B" />
-            </View>
-            <Text style={homeStyles.actionLabel}>Goals</Text>
-          </TouchableOpacity>
+      <View style={h.section}>
+        <Text style={h.sectionTitle}>Quick Actions</Text>
+        <View style={h.actionsRow}>
+          {[
+            { icon: 'activity' as const, label: 'Workouts', color: COLORS.primary, bg: 'rgba(255,214,10,0.12)', nav: 'WorkoutsTab' },
+            { icon: 'bar-chart-2' as const, label: 'Progress', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', nav: 'ProgressTab' },
+            { icon: 'user' as const, label: 'Profile', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', nav: 'ProfileTab' },
+            { icon: 'award' as const, label: 'Goals', color: '#FF6B6B', bg: 'rgba(255,107,107,0.12)', nav: 'ProfileTab' },
+          ].map((action) => (
+            <TouchableOpacity key={action.label} style={h.actionCard} onPress={() => navigation.navigate(action.nav)} activeOpacity={0.8}>
+              <View style={[h.actionIcon, { backgroundColor: action.bg }]}>
+                <Feather name={action.icon} size={20} color={action.color} />
+              </View>
+              <Text style={h.actionLabel}>{action.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
+      </View>
+
+      {/* ===== MOTIVATIONAL FOOTER ===== */}
+      <View style={h.motiveCard}>
+        <Feather name="sun" size={20} color={COLORS.primary} />
+        <Text style={h.motiveText}>"The only bad workout is the one that didn't happen."</Text>
       </View>
     </ScrollView>
   );
 };
 
-// ---- HOME-SPECIFIC STYLES ----
-const homeStyles = StyleSheet.create({
-  loadingText: {
-    color: COLORS.gray500,
-    fontFamily: 'Montserrat_400Regular',
-    marginTop: 16,
-    fontSize: 14,
-  },
-
-  // Header
+// ---- HOME STYLES ----
+const h = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 44,
-    paddingBottom: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 44, paddingBottom: 12,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center' },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
+    width: 46, height: 46, borderRadius: 23, backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center', marginRight: 12,
   },
-  avatarText: {
-    fontSize: 20,
-    fontFamily: 'Kanit_700Bold',
-    color: COLORS.secondary,
+  avatarText: { fontSize: 19, fontFamily: 'Kanit_700Bold', color: COLORS.secondary },
+  greetingSmall: { fontSize: 12, fontFamily: 'Montserrat_400Regular', color: COLORS.gray500 },
+  userName: { fontSize: 18, fontFamily: 'Kanit_600SemiBold', color: COLORS.text, marginTop: -1 },
+  planBadge: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,214,10,0.1)',
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, gap: 4,
   },
-  greetingSmall: {
-    fontSize: 13,
-    fontFamily: 'Montserrat_400Regular',
-    color: COLORS.gray500,
-  },
-  userName: {
-    fontSize: 20,
-    fontFamily: 'Kanit_600SemiBold',
-    color: COLORS.text,
-    marginTop: -2,
-  },
+  planBadgeText: { fontSize: 11, fontFamily: 'Montserrat_600SemiBold', color: COLORS.primary },
   bellButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.gray800,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.gray800,
+    alignItems: 'center', justifyContent: 'center',
   },
 
-  // Active session
-  sessionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
+  // Hero card
+  heroCard: { marginHorizontal: 20, marginBottom: 16, borderRadius: 20, overflow: 'hidden' },
+  heroImage: { width: '100%', height: 200 },
+  heroOverlay: {
+    flex: 1, justifyContent: 'flex-end', padding: 20,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  sessionTitle: {
-    fontSize: 13,
-    fontFamily: 'Montserrat_600SemiBold',
-    color: COLORS.secondary,
+  heroBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.5)', alignSelf: 'flex-start',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 8,
   },
-  sessionName: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_400Regular',
-    color: COLORS.secondary,
-    opacity: 0.7,
+  heroBadgeText: { fontSize: 10, fontFamily: 'Montserrat_700Bold', color: COLORS.primary, letterSpacing: 1 },
+  heroTitle: { fontSize: 22, fontFamily: 'Kanit_700Bold', color: '#fff', marginBottom: 2 },
+  heroSub: { fontSize: 13, fontFamily: 'Montserrat_400Regular', color: 'rgba(255,255,255,0.8)', marginBottom: 12 },
+  heroBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: COLORS.primary, alignSelf: 'flex-start',
+    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12,
   },
+  heroBtnText: { fontSize: 14, fontFamily: 'Kanit_600SemiBold', color: COLORS.secondary },
 
-  // Stats row
+  // Upgrade banner
+  upgradeBanner: {
+    marginHorizontal: 20, marginBottom: 16, borderRadius: 16, padding: 14,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#2A2200', borderWidth: 1, borderColor: 'rgba(255,214,10,0.2)',
+  },
+  upgradeBannerIcon: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,214,10,0.15)',
+    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+  },
+  upgradeBannerTitle: { fontSize: 14, fontFamily: 'Kanit_600SemiBold', color: COLORS.primary },
+  upgradeBannerSub: { fontSize: 11, fontFamily: 'Montserrat_400Regular', color: COLORS.gray500, marginTop: 1 },
+  upgradeBannerBtn: {
+    backgroundColor: COLORS.primary, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 7, marginLeft: 8,
+  },
+  upgradeBannerBtnText: { fontSize: 12, fontFamily: 'Kanit_600SemiBold', color: COLORS.secondary },
+
+  // Stats
   statsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 10,
-    marginBottom: 28,
+    flexDirection: 'row', marginHorizontal: 20, gap: 10, marginBottom: 20,
   },
   statCard: {
-    flex: 1,
-    backgroundColor: COLORS.gray800,
-    borderRadius: 18,
-    padding: 16,
-    alignItems: 'center',
+    flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 14,
+    alignItems: 'center', borderWidth: 1, borderColor: COLORS.gray800,
   },
   statIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
+    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
-  statValue: {
-    fontSize: 22,
-    fontFamily: 'Kanit_700Bold',
-    color: COLORS.text,
+  statValue: { fontSize: 20, fontFamily: 'Kanit_700Bold', color: COLORS.text },
+  statLabel: { fontSize: 11, fontFamily: 'Montserrat_500Medium', color: COLORS.gray500, marginTop: 2 },
+
+  // Session
+  sessionBanner: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary,
+    marginHorizontal: 20, borderRadius: 16, padding: 16, marginBottom: 20,
   },
-  statLabel: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_400Regular',
-    color: COLORS.gray500,
-    marginTop: 2,
-  },
+  sessionTitle: { fontSize: 12, fontFamily: 'Montserrat_600SemiBold', color: COLORS.secondary, opacity: 0.7 },
+  sessionName: { fontSize: 16, fontFamily: 'Kanit_600SemiBold', color: COLORS.secondary },
 
   // Sections
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 28,
-  },
+  section: { marginBottom: 20 },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Kanit_600SemiBold',
-    color: COLORS.text,
-  },
-  seeAll: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_500Medium',
-    color: COLORS.primary,
-  },
+  sectionTitle: { fontSize: 18, fontFamily: 'Kanit_600SemiBold', color: COLORS.text, paddingHorizontal: 0 },
+  seeAll: { fontSize: 13, fontFamily: 'Montserrat_500Medium', color: COLORS.primary },
 
-  // Workout card
-  workoutCard: {
-    backgroundColor: COLORS.gray800,
-    borderRadius: 20,
-    overflow: 'hidden',
+  // Categories
+  categoryCard: {
+    width: 130, height: 160, borderRadius: 16, marginRight: 12, overflow: 'hidden',
   },
-  workoutBanner: {
-    height: 100,
-    backgroundColor: 'rgba(255, 214, 10, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  categoryImage: { width: '100%', height: '100%' },
+  categoryOverlay: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    padding: 12, backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  workoutBody: {
-    padding: 18,
-  },
-  workoutCategory: {
-    fontSize: 11,
-    fontFamily: 'Montserrat_600SemiBold',
-    color: COLORS.primary,
-    letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  workoutName: {
-    fontSize: 20,
-    fontFamily: 'Kanit_600SemiBold',
-    color: COLORS.text,
-    marginBottom: 12,
-  },
-  workoutMeta: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.gray700,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    gap: 5,
-  },
-  metaText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_400Regular',
-    color: COLORS.gray400,
-  },
-  startBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    borderRadius: 14,
-    height: 50,
-    gap: 8,
-  },
-  startBtnText: {
-    fontSize: 16,
-    fontFamily: 'Kanit_600SemiBold',
-    color: COLORS.secondary,
-  },
+  categoryName: { fontSize: 14, fontFamily: 'Kanit_600SemiBold', color: '#fff' },
+  categoryCount: { fontSize: 11, fontFamily: 'Montserrat_400Regular', color: 'rgba(255,255,255,0.7)' },
 
-  // Empty workout
-  emptyWorkout: {
-    backgroundColor: COLORS.gray800,
-    borderRadius: 20,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.gray700,
-    borderStyle: 'dashed',
+  // Workout list items
+  workoutListItem: {
+    flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 12,
+    backgroundColor: COLORS.card, borderRadius: 16, padding: 10,
+    borderWidth: 1, borderColor: COLORS.gray800,
   },
-  emptyIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 214, 10, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
+  workoutListImage: { width: 64, height: 64, borderRadius: 12 },
+  workoutListBody: { flex: 1, marginLeft: 14 },
+  workoutListName: { fontSize: 15, fontFamily: 'Kanit_600SemiBold', color: COLORS.text },
+  workoutListMeta: { fontSize: 12, fontFamily: 'Montserrat_400Regular', color: COLORS.gray500, marginTop: 2 },
+  lockBadge: {
+    backgroundColor: 'rgba(255,214,10,0.15)', borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2, marginLeft: 8,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: 'Kanit_600SemiBold',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  emptySub: {
-    fontSize: 13,
-    fontFamily: 'Montserrat_400Regular',
-    color: COLORS.gray500,
-  },
-
-  // Nutrition card
-  nutritionCard: {
-    backgroundColor: COLORS.gray800,
-    borderRadius: 20,
-    padding: 20,
-  },
-  calorieRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  calorieCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 4,
-    borderColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 18,
-  },
-  calorieNumber: {
-    fontSize: 24,
-    fontFamily: 'Kanit_700Bold',
-    color: COLORS.primary,
-    lineHeight: 28,
-  },
-  calorieUnit: {
-    fontSize: 11,
-    fontFamily: 'Montserrat_400Regular',
-    color: COLORS.gray500,
-    marginTop: -4,
-  },
-  calorieRight: {
-    flex: 1,
-  },
-  calorieGoal: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_500Medium',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  caloriePercent: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_400Regular',
-    color: COLORS.gray500,
-    marginTop: 6,
-  },
-
-  // Macros
-  macroGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  macroCard: {
-    flex: 1,
-    backgroundColor: COLORS.gray700,
-    borderRadius: 14,
-    padding: 14,
-  },
-  macroTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  macroDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  macroName: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: COLORS.gray400,
-  },
-  macroVal: {
-    fontSize: 18,
-    fontFamily: 'Kanit_600SemiBold',
-    color: COLORS.text,
-    marginBottom: 8,
+  playBtn: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center',
   },
 
   // Water
+  waterCount: { fontSize: 13, fontFamily: 'Montserrat_500Medium', color: COLORS.gray400 },
   waterCard: {
-    backgroundColor: COLORS.gray800,
-    borderRadius: 20,
-    padding: 18,
+    marginHorizontal: 20, backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: COLORS.gray800,
   },
-  waterCount: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_500Medium',
-    color: COLORS.gray400,
-  },
-  waterBarBg: {
-    height: 8,
-    backgroundColor: COLORS.gray700,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 14,
-  },
-  waterBarFill: {
-    height: '100%',
-    backgroundColor: '#4ECDC4',
-    borderRadius: 4,
-  },
-  waterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  waterDots: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  waterBarBg: { height: 8, backgroundColor: COLORS.gray800, borderRadius: 4, marginBottom: 12 },
+  waterBarFill: { height: 8, backgroundColor: '#00BCD4', borderRadius: 4 },
+  waterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  waterDots: { flexDirection: 'row', gap: 8 },
   waterDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.gray700,
-    borderWidth: 1,
-    borderColor: COLORS.gray600,
+    width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.gray700,
   },
-  waterDotFilled: {
-    backgroundColor: '#4ECDC4',
-    borderColor: '#4ECDC4',
-  },
+  waterDotFilled: { backgroundColor: '#00BCD4' },
   addWaterBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center',
   },
 
   // Quick actions
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
-  },
+  actionsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginTop: 10 },
   actionCard: {
-    flex: 1,
-    backgroundColor: COLORS.gray800,
-    borderRadius: 18,
-    padding: 16,
-    alignItems: 'center',
+    flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 14,
+    alignItems: 'center', borderWidth: 1, borderColor: COLORS.gray800,
   },
   actionIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
+    width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
-  actionLabel: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: COLORS.gray400,
+  actionLabel: { fontSize: 12, fontFamily: 'Montserrat_500Medium', color: COLORS.gray400 },
+
+  // Motivational card
+  motiveCard: {
+    marginHorizontal: 20, marginBottom: 10, marginTop: 4, backgroundColor: COLORS.card,
+    borderRadius: 16, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1, borderColor: COLORS.gray800,
+  },
+  motiveText: {
+    flex: 1, fontSize: 13, fontFamily: 'Montserrat_500Medium',
+    color: COLORS.gray400, fontStyle: 'italic', lineHeight: 20,
   },
 });
 
@@ -785,165 +512,290 @@ const homeStyles = StyleSheet.create({
 // WORKOUT SCREEN - Categories & Workouts List
 // ============================================
 export const WorkoutScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user } = useAuth();
-  const { 
-    categories, 
-    workouts, 
-    isLoading, 
-    fetchCategories, 
-    fetchWorkouts,
-    workoutHistory,
-    fetchHistory 
-  } = useWorkout();
-  
+  const { features } = usePlan();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchCategories();
-    fetchWorkouts();
-    if (user?.id) {
-      fetchHistory(user.id);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchWorkouts(selectedCategory || undefined);
-  }, [selectedCategory]);
-
-  const onRefresh = async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    await fetchWorkouts(selectedCategory || undefined);
-    setRefreshing(false);
+    setTimeout(() => setRefreshing(false), 600);
   };
 
-  const filteredWorkouts = selectedCategory 
-    ? workouts.filter(w => w.category === selectedCategory)
-    : workouts;
+  // All workouts data with images
+  const ALL_WORKOUTS = [
+    { id: '1', name: 'Full Body Burn', category: 'fullbody', duration: 45, calories: 420, difficulty: 'Intermediate', exercises: 8, isPremium: false, image: 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=400&q=80' },
+    { id: '2', name: 'HIIT Cardio Blast', category: 'cardio', duration: 30, calories: 350, difficulty: 'Advanced', exercises: 6, isPremium: true, image: 'https://images.unsplash.com/photo-1538805060514-97d9cc17730c?w=400&q=80' },
+    { id: '3', name: 'Upper Body Power', category: 'chest', duration: 40, calories: 280, difficulty: 'Intermediate', exercises: 10, isPremium: false, image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80' },
+    { id: '4', name: 'Morning Yoga Flow', category: 'yoga', duration: 35, calories: 180, difficulty: 'Beginner', exercises: 12, isPremium: false, image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80' },
+    { id: '5', name: 'Leg Day Destroyer', category: 'legs', duration: 50, calories: 460, difficulty: 'Advanced', exercises: 9, isPremium: true, image: 'https://images.unsplash.com/photo-1434608519344-49d77a699e1d?w=400&q=80' },
+    { id: '6', name: 'Back & Biceps', category: 'back', duration: 42, calories: 310, difficulty: 'Intermediate', exercises: 8, isPremium: false, image: 'https://images.unsplash.com/photo-1603287681836-b174ce5074c2?w=400&q=80' },
+    { id: '7', name: 'Core Crusher', category: 'core', duration: 25, calories: 220, difficulty: 'Intermediate', exercises: 10, isPremium: false, image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80' },
+    { id: '8', name: 'Shoulder Sculpt', category: 'chest', duration: 35, calories: 250, difficulty: 'Beginner', exercises: 7, isPremium: false, image: 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=400&q=80' },
+    { id: '9', name: 'Sprint Intervals', category: 'cardio', duration: 20, calories: 300, difficulty: 'Advanced', exercises: 5, isPremium: true, image: 'https://images.unsplash.com/photo-1461896836934-bd45ba7ea814?w=400&q=80' },
+    { id: '10', name: 'Stretch & Recovery', category: 'yoga', duration: 30, calories: 120, difficulty: 'Beginner', exercises: 14, isPremium: false, image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80' },
+  ];
+
+  const CATEGORIES = [
+    { id: 'chest', name: 'Chest', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=200&q=80' },
+    { id: 'back', name: 'Back', image: 'https://images.unsplash.com/photo-1603287681836-b174ce5074c2?w=200&q=80' },
+    { id: 'legs', name: 'Legs', image: 'https://images.unsplash.com/photo-1434608519344-49d77a699e1d?w=200&q=80' },
+    { id: 'cardio', name: 'Cardio', image: 'https://images.unsplash.com/photo-1538805060514-97d9cc17730c?w=200&q=80' },
+    { id: 'fullbody', name: 'Full Body', image: 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=200&q=80' },
+    { id: 'core', name: 'Core', image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&q=80' },
+    { id: 'yoga', name: 'Yoga', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=200&q=80' },
+  ];
+
+  const filteredWorkouts = selectedCategory
+    ? ALL_WORKOUTS.filter(w => w.category === selectedCategory)
+    : ALL_WORKOUTS;
+
+  const diffColor = (d: string) =>
+    d === 'Beginner' ? '#10B981' : d === 'Intermediate' ? '#F59E0B' : '#EF4444';
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
-      }
+      contentContainerStyle={{ paddingBottom: 100 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
     >
-      <View style={styles.screenHeader}>
-        <Text style={styles.screenTitle}>Workouts</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('WorkoutHistory')}>
-          <Text style={styles.historyButton}>📋 History</Text>
+      {/* Header */}
+      <View style={w.header}>
+        <View>
+          <Text style={w.title}>Workouts</Text>
+          <Text style={w.subtitle}>{filteredWorkouts.length} workouts available</Text>
+        </View>
+        <TouchableOpacity style={w.searchBtn}>
+          <Feather name="search" size={20} color={COLORS.text} />
         </TouchableOpacity>
       </View>
 
-      {/* Categories */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoriesScroll}
-        contentContainerStyle={styles.categoriesContent}
-      >
-        <TouchableOpacity
-          style={[styles.categoryChip, !selectedCategory && styles.categoryChipActive]}
-          onPress={() => setSelectedCategory(null)}
+      {/* Featured Workout Banner */}
+      <TouchableOpacity style={w.featuredCard} activeOpacity={0.9}>
+        <ImageBackground
+          source={{ uri: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80' }}
+          style={w.featuredImage}
+          imageStyle={{ borderRadius: 20 }}
         >
-          <Text style={[styles.categoryChipText, !selectedCategory && styles.categoryChipTextActive]}>
-            All
-          </Text>
-        </TouchableOpacity>
-        {categories.map((cat) => (
-          <TouchableOpacity
-            key={cat.id}
-            style={[
-              styles.categoryChip,
-              selectedCategory === cat.id && styles.categoryChipActive,
-              { borderColor: cat.color }
-            ]}
-            onPress={() => setSelectedCategory(cat.id)}
-          >
-            <Text style={styles.categoryIcon}>{cat.icon}</Text>
-            <Text style={[
-              styles.categoryChipText,
-              selectedCategory === cat.id && styles.categoryChipTextActive
-            ]}>
-              {cat.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Workouts List */}
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      ) : filteredWorkouts.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🏋️</Text>
-          <Text style={styles.emptyText}>No workouts found</Text>
-          <Text style={styles.emptySubtext}>Try selecting a different category</Text>
-        </View>
-      ) : (
-        <View style={styles.workoutsList}>
-          {filteredWorkouts.map((workout) => (
-            <TouchableOpacity
-              key={workout.id}
-              style={styles.workoutListCard}
-              onPress={() => navigation.navigate('WorkoutDetail', { workout })}
-            >
-              <View style={[styles.workoutListImage, { backgroundColor: getCategoryColor(workout.category) }]}>
-                <Text style={styles.workoutListIcon}>
-                  {workout.category === 'strength' ? '💪' : 
-                   workout.category === 'cardio' ? '🏃' : 
-                   workout.category === 'yoga' ? '🧘' :
-                   workout.category === 'hiit' ? '⚡' :
-                   workout.category === 'core' ? '🎯' : '🤸'}
-                </Text>
+          <View style={w.featuredOverlay}>
+            <View style={w.featuredBadge}>
+              <Feather name="star" size={12} color={COLORS.primary} />
+              <Text style={w.featuredBadgeText}>FEATURED</Text>
+            </View>
+            <Text style={w.featuredTitle}>30-Day Full Body Challenge</Text>
+            <Text style={w.featuredSub}>Transform your body with our curated program</Text>
+            <View style={w.featuredMeta}>
+              <View style={w.featuredChip}>
+                <Feather name="clock" size={12} color="#fff" />
+                <Text style={w.featuredChipText}>30 Days</Text>
               </View>
-              <View style={styles.workoutListInfo}>
-                <Text style={styles.workoutListName}>{workout.name}</Text>
-                <View style={styles.workoutListMeta}>
-                  <Text style={styles.workoutListMetaText}>⏱️ {workout.duration} min</Text>
-                  <Text style={styles.workoutListMetaText}>🔥 {workout.calories} cal</Text>
-                </View>
-                <View style={styles.workoutListFooter}>
-                  <View style={[styles.difficultyBadge, getDifficultyStyle(workout.difficulty)]}>
-                    <Text style={styles.difficultyText}>{workout.difficulty}</Text>
-                  </View>
-                  <Text style={styles.exerciseCount}>{workout.exercises?.length || 0} exercises</Text>
-                </View>
-              </View>
-              <Text style={styles.workoutListArrow}>→</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Recent Workouts */}
-      {workoutHistory.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          {workoutHistory.slice(0, 3).map((session) => (
-            <View key={session.id} style={styles.historyItem}>
-              <View style={styles.historyIcon}>
-                <Text>✅</Text>
-              </View>
-              <View style={styles.historyInfo}>
-                <Text style={styles.historyName}>{session.workoutName}</Text>
-                <Text style={styles.historyMeta}>
-                  {new Date(session.completedAt || '').toLocaleDateString()} • 
-                  {Math.round((session.totalDuration || 0) / 60)} min • 
-                  {session.caloriesBurned || 0} cal
-                </Text>
+              <View style={w.featuredChip}>
+                <Feather name="zap" size={12} color="#fff" />
+                <Text style={w.featuredChipText}>All Levels</Text>
               </View>
             </View>
-          ))}
+          </View>
+        </ImageBackground>
+      </TouchableOpacity>
+
+      {/* Category Filter (Horizontal scroll with images) */}
+      <View style={w.section}>
+        <Text style={w.sectionTitle}>Categories</Text>
+      </View>
+      <FlatList
+        data={[{ id: null, name: 'All', image: null }, ...CATEGORIES]}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingLeft: 20, paddingRight: 8 }}
+        keyExtractor={(item) => item.id || 'all'}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[
+              w.catChip,
+              (selectedCategory === item.id || (!selectedCategory && !item.id)) && w.catChipActive,
+            ]}
+            onPress={() => setSelectedCategory(item.id)}
+            activeOpacity={0.8}
+          >
+            {item.image ? (
+              <Image source={{ uri: item.image }} style={w.catChipImg} />
+            ) : (
+              <View style={[w.catChipImg, { backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' }]}>
+                <Feather name="grid" size={14} color={COLORS.secondary} />
+              </View>
+            )}
+            <Text style={[
+              w.catChipText,
+              (selectedCategory === item.id || (!selectedCategory && !item.id)) && w.catChipTextActive,
+            ]}>
+              {item.name}
+            </Text>
+          </TouchableOpacity>
+        )}
+      />
+
+      {/* Workout List */}
+      <View style={[w.section, { marginTop: 20 }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={w.sectionTitle}>
+            {selectedCategory ? CATEGORIES.find(c => c.id === selectedCategory)?.name || 'All' : 'All'} Workouts
+          </Text>
+          <Text style={w.countBadge}>{filteredWorkouts.length}</Text>
+        </View>
+      </View>
+
+      {filteredWorkouts.map((workout) => {
+        const isLocked = workout.isPremium && !features.canAccessPremiumWorkouts;
+        return (
+          <TouchableOpacity
+            key={workout.id}
+            style={w.workoutCard}
+            activeOpacity={0.85}
+            onPress={() => {
+              if (isLocked) {
+                Alert.alert('Premium Workout', 'Upgrade your plan to access this workout.');
+              } else {
+                navigation.navigate('WorkoutDetail', { workout });
+              }
+            }}
+          >
+            <Image source={{ uri: workout.image }} style={w.workoutImg} />
+            {isLocked && (
+              <View style={w.lockOverlay}>
+                <Feather name="lock" size={16} color={COLORS.primary} />
+              </View>
+            )}
+            <View style={w.workoutBody}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={w.workoutName} numberOfLines={1}>{workout.name}</Text>
+                {workout.isPremium && (
+                  <View style={w.proBadge}>
+                    <Text style={w.proBadgeText}>PRO</Text>
+                  </View>
+                )}
+              </View>
+              <View style={w.workoutMeta}>
+                <View style={w.metaItem}>
+                  <Feather name="clock" size={12} color={COLORS.gray500} />
+                  <Text style={w.metaText}>{workout.duration} min</Text>
+                </View>
+                <View style={w.metaItem}>
+                  <Feather name="zap" size={12} color={COLORS.gray500} />
+                  <Text style={w.metaText}>{workout.calories} cal</Text>
+                </View>
+                <View style={w.metaItem}>
+                  <Feather name="layers" size={12} color={COLORS.gray500} />
+                  <Text style={w.metaText}>{workout.exercises} exercises</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                <View style={[w.diffBadge, { backgroundColor: diffColor(workout.difficulty) + '20' }]}>
+                  <View style={[w.diffDot, { backgroundColor: diffColor(workout.difficulty) }]} />
+                  <Text style={[w.diffText, { color: diffColor(workout.difficulty) }]}>{workout.difficulty}</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={COLORS.gray500} />
+              </View>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+
+      {filteredWorkouts.length === 0 && (
+        <View style={w.emptyState}>
+          <Feather name="inbox" size={48} color={COLORS.gray600} />
+          <Text style={w.emptyTitle}>No workouts found</Text>
+          <Text style={w.emptySub}>Try a different category</Text>
         </View>
       )}
-
-      <View style={{ height: 100 }} />
     </ScrollView>
   );
 };
+
+// ---- WORKOUT SCREEN STYLES ----
+const w = StyleSheet.create({
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 44, paddingBottom: 8,
+  },
+  title: { fontSize: 28, fontFamily: 'Kanit_700Bold', color: COLORS.text },
+  subtitle: { fontSize: 13, fontFamily: 'Montserrat_400Regular', color: COLORS.gray500, marginTop: -2 },
+  searchBtn: {
+    width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.gray800,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  // Featured
+  featuredCard: { marginHorizontal: 20, marginVertical: 16, borderRadius: 20, overflow: 'hidden' },
+  featuredImage: { width: '100%', height: 180 },
+  featuredOverlay: {
+    flex: 1, justifyContent: 'flex-end', padding: 18,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  featuredBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, marginBottom: 8,
+  },
+  featuredBadgeText: { fontSize: 10, fontFamily: 'Montserrat_700Bold', color: COLORS.primary, letterSpacing: 1 },
+  featuredTitle: { fontSize: 20, fontFamily: 'Kanit_700Bold', color: '#fff', marginBottom: 2 },
+  featuredSub: { fontSize: 12, fontFamily: 'Montserrat_400Regular', color: 'rgba(255,255,255,0.7)', marginBottom: 10 },
+  featuredMeta: { flexDirection: 'row', gap: 10 },
+  featuredChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+  },
+  featuredChipText: { fontSize: 11, fontFamily: 'Montserrat_500Medium', color: '#fff' },
+
+  // Section
+  section: { paddingHorizontal: 20, marginBottom: 10 },
+  sectionTitle: { fontSize: 18, fontFamily: 'Kanit_600SemiBold', color: COLORS.text },
+  countBadge: {
+    fontSize: 12, fontFamily: 'Montserrat_600SemiBold', color: COLORS.primary,
+    backgroundColor: 'rgba(255,214,10,0.12)', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10,
+  },
+
+  // Category chips
+  catChip: {
+    alignItems: 'center', marginRight: 12, paddingVertical: 8, paddingHorizontal: 4,
+    borderRadius: 16, borderWidth: 2, borderColor: 'transparent', width: 72,
+  },
+  catChipActive: { borderColor: COLORS.primary, backgroundColor: 'rgba(255,214,10,0.08)' },
+  catChipImg: { width: 48, height: 48, borderRadius: 24, marginBottom: 6 },
+  catChipText: { fontSize: 11, fontFamily: 'Montserrat_500Medium', color: COLORS.gray500, textAlign: 'center' },
+  catChipTextActive: { color: COLORS.primary, fontFamily: 'Montserrat_600SemiBold' },
+
+  // Workout cards
+  workoutCard: {
+    flexDirection: 'row', marginHorizontal: 20, marginBottom: 12,
+    backgroundColor: COLORS.card, borderRadius: 16, overflow: 'hidden',
+    borderWidth: 1, borderColor: COLORS.gray800,
+  },
+  workoutImg: { width: 100, height: 110 },
+  lockOverlay: {
+    position: 'absolute', left: 0, top: 0, width: 100, height: 110,
+    backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center',
+  },
+  workoutBody: { flex: 1, padding: 12, justifyContent: 'center' },
+  workoutName: { fontSize: 15, fontFamily: 'Kanit_600SemiBold', color: COLORS.text, flex: 1 },
+  proBadge: {
+    backgroundColor: 'rgba(255,214,10,0.15)', borderRadius: 6,
+    paddingHorizontal: 7, paddingVertical: 1, marginLeft: 8,
+  },
+  proBadgeText: { fontSize: 9, fontFamily: 'Montserrat_700Bold', color: COLORS.primary, letterSpacing: 0.5 },
+  workoutMeta: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  metaText: { fontSize: 11, fontFamily: 'Montserrat_400Regular', color: COLORS.gray500 },
+  diffBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  },
+  diffDot: { width: 6, height: 6, borderRadius: 3 },
+  diffText: { fontSize: 11, fontFamily: 'Montserrat_600SemiBold' },
+
+  // Empty state
+  emptyState: { alignItems: 'center', paddingVertical: 60 },
+  emptyTitle: { fontSize: 16, fontFamily: 'Kanit_600SemiBold', color: COLORS.text, marginTop: 16 },
+  emptySub: { fontSize: 13, fontFamily: 'Montserrat_400Regular', color: COLORS.gray500, marginTop: 4 },
+});
 
 // ============================================
 // WORKOUT DETAIL SCREEN
@@ -1576,19 +1428,17 @@ export const DietScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 // ============================================
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, logout, updateUser } = useAuth();
+  const { planName, planId, isBasic, isPaid, tier } = usePlan();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
-  const [stats, setStats] = useState<any>(null);
 
-  useEffect(() => {
-    if (user?.id) {
-      apiClient.get(`/users/${user.id}/stats`).then((res) => {
-        if (res.success && res.data) {
-          setStats(res.data);
-        }
-      });
-    }
-  }, [user?.id]);
+  // Sample stats data (no API call)
+  const stats = {
+    workouts: 24,
+    minutes: 580,
+    calories: 8540,
+    streak: 5,
+  };
 
   const handleSave = () => {
     updateUser({ name });
@@ -1609,148 +1459,203 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
   const fitnessProfile = (user as any)?.fitnessProfile;
 
+  const tierColor =
+    tier === 0 ? '#9CA3AF' :
+    tier === 1 ? '#3B82F6' :
+    tier === 2 ? '#EAB308' :
+    '#F59E0B';
+
+  const tierBg =
+    tier === 0 ? 'rgba(156, 163, 175, 0.10)' :
+    tier === 1 ? 'rgba(59, 130, 246, 0.10)' :
+    tier === 2 ? 'rgba(234, 179, 8, 0.10)' :
+    'rgba(245, 158, 11, 0.12)';
+
   const menuSections = [
     {
       title: 'Account',
       items: [
-        { icon: 'settings' as const, label: 'Settings', screen: 'Settings' },
-        { icon: 'credit-card' as const, label: 'Subscription', screen: 'SubscriptionPlans' },
+        { icon: 'settings' as const, label: 'Settings', screen: 'Settings', color: '#A78BFA' },
+        { icon: 'credit-card' as const, label: 'Subscription', screen: 'SubscriptionPlans', color: COLORS.primary },
       ],
     },
     {
       title: 'Fitness',
       items: [
-        { icon: 'bar-chart-2' as const, label: 'Health Data', screen: 'HealthData' },
-        { icon: 'target' as const, label: 'Goals', screen: 'Goals' },
+        { icon: 'bar-chart-2' as const, label: 'Health Data', screen: 'HealthData', color: '#4ECDC4' },
+        { icon: 'target' as const, label: 'Goals', screen: 'Goals', color: '#FF6B6B' },
       ],
     },
     {
       title: 'Support',
       items: [
-        { icon: 'help-circle' as const, label: 'Help & Support', screen: 'HelpSupport' },
-        { icon: 'file-text' as const, label: 'Terms & Privacy', screen: 'TermsPrivacy' },
+        { icon: 'help-circle' as const, label: 'Help & Support', screen: 'HelpSupport', color: '#3B82F6' },
+        { icon: 'file-text' as const, label: 'Terms & Privacy', screen: 'TermsPrivacy', color: COLORS.gray400 },
       ],
     },
   ];
 
+  const statsData = [
+    { icon: 'activity' as const, value: stats.workouts.toString(), label: 'Workouts', color: '#4ECDC4' },
+    { icon: 'clock' as const, value: stats.minutes.toString(), label: 'Minutes', color: '#3B82F6' },
+    { icon: 'zap' as const, value: stats.calories.toLocaleString(), label: 'Calories', color: '#F59E0B' },
+    { icon: 'trending-up' as const, value: `${stats.streak}`, label: 'Day Streak', color: COLORS.primary },
+  ];
+
   return (
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 100 }}
+      style={{ flex: 1, backgroundColor: COLORS.secondary }}
+      contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
       <View style={profStyles.header}>
         <Text style={profStyles.headerTitle}>Profile</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Settings')}
+          style={profStyles.headerSettingsBtn}
+          activeOpacity={0.7}
+        >
+          <Feather name="settings" size={22} color={COLORS.gray400} />
+        </TouchableOpacity>
       </View>
 
-      {/* Profile Card */}
-      <View style={profStyles.profileCard}>
-        <View style={profStyles.avatarRow}>
-          <View style={profStyles.avatar}>
-            <Text style={profStyles.avatarText}>
-              {user?.name?.charAt(0)?.toUpperCase() || 'N'}
-            </Text>
+      {/* Profile Hero Card */}
+      <View style={profStyles.heroCard}>
+        <ImageBackground
+          source={{ uri: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80' }}
+          style={profStyles.heroCover}
+          imageStyle={profStyles.heroCoverImage}
+        >
+          <View style={profStyles.heroCoverOverlay} />
+        </ImageBackground>
+
+        <View style={profStyles.heroBody}>
+          <View style={profStyles.avatarWrap}>
+            <View style={profStyles.avatar}>
+              <Text style={profStyles.avatarText}>
+                {user?.name?.charAt(0)?.toUpperCase() || 'N'}
+              </Text>
+            </View>
           </View>
-          <View style={profStyles.userInfo}>
-            {editing ? (
-              <View style={profStyles.editRow}>
-                <View style={profStyles.editInputWrap}>
-                  <Feather name="edit-2" size={16} color={COLORS.gray500} style={{ marginRight: 8 }} />
-                  <View style={{ flex: 1 }}>
-                    {/* @ts-ignore */}
-                    <TextInput
-                      placeholder="Your name"
-                      value={name}
-                      onChangeText={setName}
-                    />
-                  </View>
-                </View>
-                <View style={profStyles.editActions}>
-                  <TouchableOpacity onPress={() => setEditing(false)} style={profStyles.editCancel}>
-                    <Feather name="x" size={18} color={COLORS.gray400} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleSave} style={profStyles.editSave}>
-                    <Feather name="check" size={18} color={COLORS.secondary} />
-                  </TouchableOpacity>
+
+          {editing ? (
+            <View style={profStyles.editContainer}>
+              <View style={profStyles.editInputWrap}>
+                <Feather name="edit-2" size={16} color={COLORS.gray500} style={{ marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  {/* @ts-ignore */}
+                  <TextInput
+                    placeholder="Your name"
+                    value={name}
+                    onChangeText={setName}
+                  />
                 </View>
               </View>
-            ) : (
-              <>
-                <Text style={profStyles.userName}>{user?.name || 'User'}</Text>
-                <Text style={profStyles.userEmail}>{user?.email}</Text>
-              </>
-            )}
-          </View>
-          {!editing && (
-            <TouchableOpacity onPress={() => setEditing(true)} style={profStyles.editBtn}>
-              <Feather name="edit-2" size={16} color={COLORS.primary} />
-            </TouchableOpacity>
+              <View style={profStyles.editActions}>
+                <TouchableOpacity onPress={() => setEditing(false)} style={profStyles.editCancel}>
+                  <Feather name="x" size={18} color={COLORS.gray400} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSave} style={profStyles.editSave}>
+                  <Feather name="check" size={18} color={COLORS.secondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <>
+              <Text style={profStyles.userName}>{user?.name || 'User'}</Text>
+              <Text style={profStyles.userEmail}>{user?.email}</Text>
+              <TouchableOpacity
+                onPress={() => setEditing(true)}
+                style={profStyles.editProfileBtn}
+                activeOpacity={0.7}
+              >
+                <Feather name="edit-2" size={14} color={COLORS.primary} />
+                <Text style={profStyles.editProfileTxt}>Edit Profile</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
+      </View>
 
-        {/* Plan badge */}
-        <View style={profStyles.planBadge}>
+      {/* Plan Badge Card */}
+      <View style={[profStyles.planCard, { borderColor: tierColor + '30' }]}>
+        <View style={[profStyles.planIconWrap, { backgroundColor: tierBg }]}>
           <Feather
-            name={user?.subscriptionPlan === 'premium' ? 'award' : 'star'}
-            size={14}
-            color={COLORS.primary}
+            name={tier >= 2 ? 'award' : tier === 1 ? 'star' : 'user'}
+            size={20}
+            color={tierColor}
           />
-          <Text style={profStyles.planText}>
-            {user?.subscriptionPlan === 'premium' ? 'Premium Plan' : 'Free Plan'}
-          </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('SubscriptionPlans')}>
-            <Text style={profStyles.upgradeTxt}>
-              {user?.subscriptionPlan === 'premium' ? 'Manage' : 'Upgrade'}
-            </Text>
+        </View>
+        <View style={profStyles.planInfo}>
+          <Text style={profStyles.planLabel}>Current Plan</Text>
+          <Text style={[profStyles.planName, { color: tierColor }]}>{planName}</Text>
+        </View>
+        {isPaid ? (
+          <View style={profStyles.planActiveBadge}>
+            <View style={profStyles.planActiveDot} />
+            <Text style={profStyles.planActiveText}>Active</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('SubscriptionPlans')}
+            style={[profStyles.planUpgradeBtn, { backgroundColor: tierColor }]}
+            activeOpacity={0.8}
+          >
+            <Feather name="arrow-up-right" size={14} color={COLORS.secondary} />
+            <Text style={profStyles.planUpgradeTxt}>Upgrade</Text>
           </TouchableOpacity>
-        </View>
+        )}
       </View>
 
-      {/* Stats Grid */}
+      {/* Stats Grid 2x2 */}
       <View style={profStyles.statsGrid}>
-        <View style={profStyles.statBox}>
-          <Feather name="zap" size={18} color="#FF6B6B" />
-          <Text style={profStyles.statNum}>{stats?.stats?.totalWorkouts || 0}</Text>
-          <Text style={profStyles.statLbl}>Workouts</Text>
-        </View>
-        <View style={profStyles.statBox}>
-          <Feather name="clock" size={18} color={COLORS.primary} />
-          <Text style={profStyles.statNum}>{stats?.stats?.totalMinutes || 0}</Text>
-          <Text style={profStyles.statLbl}>Minutes</Text>
-        </View>
-        <View style={profStyles.statBox}>
-          <Feather name="trending-up" size={18} color="#4ECDC4" />
-          <Text style={profStyles.statNum}>{stats?.stats?.totalCaloriesBurned || 0}</Text>
-          <Text style={profStyles.statLbl}>Calories</Text>
-        </View>
-        <View style={profStyles.statBox}>
-          <Feather name="award" size={18} color="#A78BFA" />
-          <Text style={profStyles.statNum}>{stats?.stats?.currentStreak || 0}</Text>
-          <Text style={profStyles.statLbl}>Streak</Text>
-        </View>
+        {statsData.map((stat, idx) => (
+          <View key={idx} style={profStyles.statCard}>
+            <View style={[profStyles.statIconWrap, { backgroundColor: stat.color + '18' }]}>
+              <Feather name={stat.icon} size={20} color={stat.color} />
+            </View>
+            <Text style={profStyles.statValue}>{stat.value}</Text>
+            <Text style={profStyles.statLabel}>{stat.label}</Text>
+          </View>
+        ))}
       </View>
 
-      {/* Body Metrics (from Firestore fitness profile) */}
+      {/* Body Metrics Card */}
       {fitnessProfile && (
         <View style={profStyles.metricsCard}>
-          <Text style={profStyles.metricsTitle}>Body Metrics</Text>
+          <View style={profStyles.metricsHeader}>
+            <Feather name="heart" size={18} color={COLORS.primary} />
+            <Text style={profStyles.metricsTitle}>Body Metrics</Text>
+          </View>
           <View style={profStyles.metricsRow}>
             <View style={profStyles.metricItem}>
-              <Text style={profStyles.metricVal}>{fitnessProfile.age}</Text>
-              <Text style={profStyles.metricLbl}>Age</Text>
+              <Text style={profStyles.metricValue}>{fitnessProfile.age}</Text>
+              <Text style={profStyles.metricLabel}>Age</Text>
             </View>
             <View style={profStyles.metricDivider} />
             <View style={profStyles.metricItem}>
-              <Text style={profStyles.metricVal}>{fitnessProfile.height}</Text>
-              <Text style={profStyles.metricLbl}>cm</Text>
+              <Text style={profStyles.metricValue}>{fitnessProfile.height}</Text>
+              <Text style={profStyles.metricLabel}>Height (cm)</Text>
             </View>
             <View style={profStyles.metricDivider} />
             <View style={profStyles.metricItem}>
-              <Text style={profStyles.metricVal}>{fitnessProfile.weight}</Text>
-              <Text style={profStyles.metricLbl}>kg</Text>
+              <Text style={profStyles.metricValue}>{fitnessProfile.weight}</Text>
+              <Text style={profStyles.metricLabel}>Weight (kg)</Text>
             </View>
           </View>
+          {fitnessProfile.gender && (
+            <View style={profStyles.genderRow}>
+              <Feather
+                name={fitnessProfile.gender === 'male' ? 'user' : 'user'}
+                size={14}
+                color={COLORS.gray400}
+              />
+              <Text style={profStyles.genderText}>
+                {fitnessProfile.gender.charAt(0).toUpperCase() + fitnessProfile.gender.slice(1)}
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -1767,10 +1672,10 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                   iIdx < section.items.length - 1 && profStyles.menuRowBorder,
                 ]}
                 onPress={() => navigation.navigate(item.screen)}
-                activeOpacity={0.7}
+                activeOpacity={0.6}
               >
-                <View style={profStyles.menuIconBg}>
-                  <Feather name={item.icon} size={18} color={COLORS.text} />
+                <View style={[profStyles.menuIconBg, { backgroundColor: item.color + '15' }]}>
+                  <Feather name={item.icon} size={18} color={item.color} />
                 </View>
                 <Text style={profStyles.menuLabel}>{item.label}</Text>
                 <Feather name="chevron-right" size={18} color={COLORS.gray600} />
@@ -1781,11 +1686,15 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       ))}
 
       {/* Logout */}
-      <TouchableOpacity style={profStyles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-        <Feather name="log-out" size={18} color={COLORS.error} />
+      <TouchableOpacity style={profStyles.logoutBtn} onPress={handleLogout} activeOpacity={0.7}>
+        <View style={profStyles.logoutIconWrap}>
+          <Feather name="log-out" size={18} color={COLORS.error} />
+        </View>
         <Text style={profStyles.logoutTxt}>Log Out</Text>
+        <Feather name="chevron-right" size={18} color={'rgba(239, 68, 68, 0.4)'} />
       </TouchableOpacity>
 
+      {/* Version */}
       <Text style={profStyles.version}>Nexu Fitness v1.0.0</Text>
     </ScrollView>
   );
@@ -1793,164 +1702,278 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
 // ---- PROFILE-SPECIFIC STYLES ----
 const profStyles = StyleSheet.create({
+  // Header
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 44,
     paddingBottom: 8,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 30,
     fontFamily: 'Kanit_700Bold',
     color: COLORS.text,
+    letterSpacing: -0.5,
+  },
+  headerSettingsBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.gray800,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  // Profile card
-  profileCard: {
-    backgroundColor: COLORS.gray800,
+  // Hero Card
+  heroCard: {
+    backgroundColor: COLORS.card,
     borderRadius: 20,
     marginHorizontal: 20,
     marginTop: 16,
-    padding: 20,
     marginBottom: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.gray800,
   },
-  avatarRow: {
-    flexDirection: 'row',
+  heroCover: {
+    height: 120,
+    width: '100%',
+  },
+  heroCoverImage: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  heroCoverOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(26, 26, 26, 0.45)',
+  },
+  heroBody: {
     alignItems: 'center',
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+  },
+  avatarWrap: {
+    marginTop: -40,
+    marginBottom: 12,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    borderWidth: 4,
+    borderColor: COLORS.card,
   },
   avatarText: {
-    fontSize: 24,
+    fontSize: 32,
     fontFamily: 'Kanit_700Bold',
     color: COLORS.secondary,
   },
-  userInfo: {
-    flex: 1,
-  },
   userName: {
-    fontSize: 20,
-    fontFamily: 'Kanit_600SemiBold',
+    fontSize: 24,
+    fontFamily: 'Kanit_700Bold',
     color: COLORS.text,
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
   userEmail: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
     color: COLORS.gray500,
     marginTop: 2,
+    textAlign: 'center',
   },
-  editBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 214, 10, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Edit mode
-  editRow: {
-    flex: 1,
-  },
-  editInputWrap: {
+  editProfileBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.gray700,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 42,
+    gap: 6,
+    marginTop: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 214, 10, 0.25)',
+    backgroundColor: 'rgba(255, 214, 10, 0.06)',
   },
-  editActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-    marginTop: 10,
-  },
-  editCancel: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.gray700,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editSave: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Plan badge
-  planBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 214, 10, 0.08)',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginTop: 16,
-    gap: 8,
-  },
-  planText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: 'Montserrat_500Medium',
-    color: COLORS.text,
-  },
-  upgradeTxt: {
+  editProfileTxt: {
     fontSize: 13,
     fontFamily: 'Montserrat_600SemiBold',
     color: COLORS.primary,
   },
 
-  // Stats grid
-  statsGrid: {
+  // Edit mode
+  editContainer: {
+    width: '100%',
+    paddingHorizontal: 4,
+    marginTop: 4,
+  },
+  editInputWrap: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 10,
-    marginBottom: 16,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: COLORS.gray800,
-    borderRadius: 16,
-    padding: 14,
     alignItems: 'center',
-    gap: 6,
+    backgroundColor: COLORS.gray700,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 46,
+    borderWidth: 1,
+    borderColor: COLORS.gray800,
   },
-  statNum: {
-    fontSize: 20,
-    fontFamily: 'Kanit_700Bold',
-    color: COLORS.text,
+  editActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 12,
   },
-  statLbl: {
-    fontSize: 11,
-    fontFamily: 'Montserrat_400Regular',
-    color: COLORS.gray500,
+  editCancel: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.gray700,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.gray800,
+  },
+  editSave: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  // Body metrics
+  // Plan Badge Card
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.gray800,
+  },
+  planIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  planInfo: {
+    flex: 1,
+  },
+  planLabel: {
+    fontSize: 11,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.gray500,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  planName: {
+    fontSize: 17,
+    fontFamily: 'Kanit_600SemiBold',
+    marginTop: 2,
+  },
+  planActiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.10)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  planActiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.success,
+  },
+  planActiveText: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_600SemiBold',
+    color: COLORS.success,
+  },
+  planUpgradeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  planUpgradeTxt: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_700Bold',
+    color: COLORS.secondary,
+  },
+
+  // Stats Grid 2x2
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    width: (width - 52) / 2,
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: COLORS.gray800,
+  },
+  statIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statValue: {
+    fontSize: 26,
+    fontFamily: 'Kanit_700Bold',
+    color: COLORS.text,
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.gray500,
+    marginTop: 2,
+  },
+
+  // Body Metrics
   metricsCard: {
-    backgroundColor: COLORS.gray800,
+    backgroundColor: COLORS.card,
     borderRadius: 20,
     marginHorizontal: 20,
     padding: 20,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: COLORS.gray800,
+  },
+  metricsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 18,
   },
   metricsTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: 'Kanit_600SemiBold',
     color: COLORS.text,
-    marginBottom: 16,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -1961,45 +1984,65 @@ const profStyles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  metricVal: {
-    fontSize: 26,
+  metricValue: {
+    fontSize: 28,
     fontFamily: 'Kanit_700Bold',
     color: COLORS.primary,
+    letterSpacing: -0.5,
   },
-  metricLbl: {
-    fontSize: 13,
+  metricLabel: {
+    fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
     color: COLORS.gray500,
-    marginTop: 2,
+    marginTop: 4,
   },
   metricDivider: {
     width: 1,
-    height: 40,
+    height: 44,
     backgroundColor: COLORS.gray700,
+    borderRadius: 1,
+  },
+  genderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray700,
+  },
+  genderText: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_500Medium',
+    color: COLORS.gray400,
   },
 
-  // Menu sections
+  // Menu Sections
   menuSection: {
     paddingHorizontal: 20,
     marginBottom: 16,
   },
   menuSectionTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Montserrat_600SemiBold',
     color: COLORS.gray500,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     marginBottom: 10,
+    marginLeft: 4,
   },
   menuCard: {
-    backgroundColor: COLORS.gray800,
+    backgroundColor: COLORS.card,
     borderRadius: 18,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.gray800,
   },
   menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
+    paddingVertical: 14,
     paddingHorizontal: 16,
   },
   menuRowBorder: {
@@ -2007,10 +2050,9 @@ const profStyles = StyleSheet.create({
     borderBottomColor: COLORS.gray700,
   },
   menuIconBg: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.gray700,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -2026,17 +2068,26 @@ const profStyles = StyleSheet.create({
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
     marginHorizontal: 20,
     marginTop: 8,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-    borderRadius: 16,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: 'rgba(239, 68, 68, 0.12)',
+  },
+  logoutIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
   },
   logoutTxt: {
+    flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_600SemiBold',
     color: COLORS.error,
@@ -2048,8 +2099,9 @@ const profStyles = StyleSheet.create({
     fontFamily: 'Montserrat_400Regular',
     color: COLORS.gray600,
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 24,
     marginBottom: 10,
+    letterSpacing: 0.3,
   },
 });
 
